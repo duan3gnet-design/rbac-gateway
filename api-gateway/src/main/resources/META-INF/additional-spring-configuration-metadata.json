@@ -1,0 +1,14 @@
+{
+  "properties": [
+    {
+      "name": "auth.service.url",
+      "type": "java.lang.String",
+      "description": "Base URL of the auth service for token validation fallback."
+    },
+    {
+      "name": "jwt.secret",
+      "type": "java.lang.String",
+      "description": "Base64-encoded HMAC secret shared between gateway and auth-service."
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+version: '3.9'
+
+services:
+
+  # ==================== PostgreSQL ====================
+  postgres:
+    image: postgres:16-alpine
+    container_name: rbac-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: ${DB_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-12345}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rbac-network
+
+  # ==================== Redis ====================
+  redis:
+    image: redis:7-alpine
+    container_name: rbac-redis
+    restart: unless-stopped
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rbac-network
+
+  # ==================== Redis Commander (UI) ====================
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: rbac-redis-ui
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:redis:6379:0:${REDIS_PASSWORD:-}
+    ports:
+      - "8090:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - rbac-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  rbac-network:
+    driver: bridge

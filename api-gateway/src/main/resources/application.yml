@@ -1,0 +1,106 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  main:
+    web-application-type: reactive
+
+  # ==================== REDIS ====================
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: 2s
+      timeout: 1s
+
+  # ==================== R2DBC ====================
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5432/postgres
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+    pool:
+      initial-size: 2
+      max-size: 10
+      max-idle-time: 30m
+
+  # ==================== GATEWAY ====================
+  cloud:
+    gateway:
+      server:
+        webflux:
+          trusted-proxies: ".*"
+          # Routes không còn hardcode ở đây nữa.
+          # Chúng được load động từ PostgreSQL qua DatabaseRouteDefinitionRepository.
+
+# ==================== JWT ====================
+jwt:
+  secret: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=
+
+# ==================== RATE LIMIT ====================
+rate-limit:
+  # Số request/giây được nạp lại vào bucket (sustained rate)
+  replenish-rate: 20
+  # Số token tối đa trong bucket (burst cho phép)
+  burst-capacity: 40
+  # Fallback khi Redis down: true = cho qua, false = chặn
+  allow-on-redis-failure: true
+  # Public paths không áp dụng rate limit (dùng AntPathMatcher)
+  excluded-paths:
+    - /api/auth/login
+    - /api/auth/register
+    - /api/auth/refresh
+    - /api/auth/logout
+    - /api/auth/google
+    - /oauth2/**
+    - /login/oauth2/**
+    - /actuator/**
+
+# ==================== RESILIENCE4J ====================
+resilience4j:
+  circuitbreaker:
+    instances:
+      authServiceCB:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+      resourceServiceCB:
+        sliding-window-size: 10
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 15s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+
+  timelimiter:
+    instances:
+      authServiceCB:
+        timeout-duration: 3s
+      resourceServiceCB:
+        timeout-duration: 5s
+
+# ==================== ACTUATOR ====================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, gateway, circuitbreakers, circuitbreakerevents, retryevents
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
+
+# ==================== LOGGING ====================
+logging:
+  level:
+    root: INFO
+    org.springframework.cloud.gateway: DEBUG
+    io.github.resilience4j: DEBUG
+    com.api.gateway.route: DEBUG

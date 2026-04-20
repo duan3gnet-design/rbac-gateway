@@ -1,0 +1,50 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/testdb
+    username: test
+    password: test
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+
+  cache:
+    type: redis
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: test-client-id
+            client-secret: test-client-secret
+            scope: email, profile
+            redirect-uri: "http://localhost/login/oauth2/code/google"
+
+jwt:
+  secret: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=
+  expiration: 86400000
+
+app:
+  jwt:
+    refresh-expiration-days: 7
+  internal:
+    secret: test-internal-secret
+
+logging:
+  level:
+    root: WARN
+    com.auth.service: DEBUG
+    org.springframework.security: DEBUG
