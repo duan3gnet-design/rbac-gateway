@@ -1,47 +1,52 @@
 # 🔐 RBAC Gateway
 
-A production-ready **microservices backend** with Role-Based Access Control, JWT authentication, and an API Gateway built on Spring Boot 4 + Spring Cloud.
+A production-ready **microservices backend** with Role-Based Access Control, JWT authentication, dynamic rate limiting, and an API Gateway built on Spring Boot 4 + Spring Cloud.
 
 ---
 
 ## 📐 Architecture Overview
 
 ```
-                        ┌─────────────────────────────────┐
-                        │           API Gateway            │
-                        │   (WebFlux · Port 8080)          │
-                        │                                  │
-                        │  ┌──────────┐  ┌─────────────┐  │
-                        │  │  Route   │  │  JWT Filter │  │
-                        │  │  Config  │  │  (Global)   │  │
-                        │  └──────────┘  └─────────────┘  │
-                        │                                  │
-                        │  ┌──────────────────────────┐    │
-                        │  │   Circuit Breaker        │    │
-                        │  │   (Resilience4j)         │    │
-                        │  └──────────────────────────┘    │
-                        └──────────┬──────────┬────────────┘
-                                   │          │
-                     ┌─────────────┘          └─────────────┐
-                     ▼                                       ▼
+                    ┌──────────────────────────────────────────┐
+                    │              API Gateway                  │
+                    │          (WebFlux · Port 8080)           │
+                    │                                          │
+                    │  ┌─────────────┐  ┌──────────────────┐  │
+                    │  │ JWT Filter  │  │  Rate Limit      │  │
+                    │  │  (Global)   │  │  Filter (Redis)  │  │
+                    │  └─────────────┘  └──────────────────┘  │
+                    │                                          │
+                    │  ┌─────────────┐  ┌──────────────────┐  │
+                    │  │   Dynamic   │  │  Circuit Breaker │  │
+                    │  │   Routes    │  │  (Resilience4j)  │  │
+                    │  │  (DB-backed)│  └──────────────────┘  │
+                    │  └─────────────┘                        │
+                    └──────────────┬───────────┬──────────────┘
+                                   │           │
+                     ┌─────────────┘           └─────────────┐
+                     ▼                                        ▼
           ┌──────────────────┐                  ┌──────────────────────┐
           │   Auth Service   │                  │   Resource Service   │
           │   (Port 8081)    │                  │   (Port 8082)        │
           │                  │                  │                      │
-          │  - Login/Logout  │                  │  - Protected APIs    │
-          │  - Refresh Token │                  │  - RBAC Enforcement  │
-          │  - Revoke Token  │                  │  - Permission Check  │
-          │  - Google OAuth2 │                  │    (resource:action) │
+          │  · Login/Logout  │                  │  · Protected APIs    │
+          │  · Refresh Token │                  │  · RBAC Enforcement  │
+          │  · Revoke Token  │                  │  · Permission Check  │
+          │  · Google OAuth2 │                  │    (resource:action) │
           └────────┬─────────┘                  └──────────┬───────────┘
                    │                                        │
                    └──────────────┬─────────────────────────┘
                                   ▼
-                        ┌──────────────────┐
-                        │   PostgreSQL DB  │
-                        │                 │
-                        │  (Flyway        │
-                        │   Migration)    │
-                        └──────────────────┘
+                     ┌────────────────────────┐
+                     │       PostgreSQL        │
+                     │   (Flyway Migration)   │
+                     └────────────────────────┘
+                                  ▲
+                     ┌────────────┴───────────┐
+                     │          Redis          │
+                     │  · Rate limit buckets  │
+                     │  · Config cache        │
+                     └────────────────────────┘
 ```
 
 ---
@@ -50,10 +55,11 @@ A production-ready **microservices backend** with Role-Based Access Control, JWT
 
 | Module | Port | Description |
 |---|---|---|
-| `api-gateway` | `8080` | Spring Cloud Gateway (WebFlux) — routing, JWT validation, Circuit Breaker |
+| `api-gateway` | `8080` | Spring Cloud Gateway (WebFlux) — routing, JWT validation, rate limiting, Circuit Breaker |
 | `auth-service` | `8081` | Authentication — login, refresh token, token revocation, Google OAuth2 |
 | `resource-service` | `8082` | Protected resources — RBAC enforcement, permission-based access control |
-| `db-migration` | — | Standalone Flyway module — schema versioning & seeding |
+| `migration` | — | Standalone Flyway module — schema versioning & seeding |
+| `gateway-ui` | `5173` | React admin console — route management, rate limit management |
 
 ---
 
@@ -67,9 +73,12 @@ A production-ready **microservices backend** with Role-Based Access Control, JWT
 | Security | Spring Security, JJWT |
 | OAuth2 | Google OAuth2 (Redirect flow + SDK flow) |
 | Resilience | Resilience4j (Circuit Breaker) |
-| Database | PostgreSQL |
+| Rate Limiting | Redis Token Bucket (Lua script, atomic) |
+| Database | PostgreSQL + Spring Data R2DBC |
 | Migration | Flyway (separate module) |
+| Cache | Redis (Reactive — `spring-boot-starter-data-redis-reactive`) |
 | Java | Java 21 |
+| Frontend | React 19 + Vite + MUI v7 |
 
 ---
 
@@ -85,12 +94,30 @@ A production-ready **microservices backend** with Role-Based Access Control, JWT
 ### Authorization
 - [x] Role-Based Access Control (RBAC) in `resource-service`
 - [x] Advanced RBAC — permissions encoded as `resource:action` (e.g., `user:read`, `order:delete`) embedded in JWT claims
-- [x] API Gateway — JWT validation filter (global)
+- [x] API Gateway — JWT validation filter (global, order `-100`)
+
+### Rate Limiting (`api-gateway`)
+- [x] **Token Bucket** algorithm — implemented as an atomic Redis Lua script (no race conditions)
+- [x] **Per-User isolation** — each `sub` claim gets its own bucket (`rate_limit:user:{username}`)
+- [x] **Anonymous fallback** — requests without a valid JWT are bucketed by IP (`rate_limit:ip:{ip}`)
+- [x] **DB-backed config** — replenish rate & burst capacity stored in `rate_limit_config` table
+- [x] **Per-User override** — individual users can have custom limits that override the global default
+- [x] **Redis config cache** — configs cached with TTL 5 min, auto-invalidated on admin update
+- [x] **Fail-open / fail-closed** — configurable behavior when Redis is unavailable
+- [x] **Rate limit headers** — `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Replenish-Rate`
+- [x] **429 JSON response** — structured error body with `timestamp`, `status`, `message`, `path`
+- [x] **Excluded paths** — public endpoints (login, register, OAuth2) bypass rate limiting
 
 ### Infrastructure
-- [x] Spring Cloud Gateway routing
-- [x] Flyway as a standalone `db-migration` module
-- [x] Circuit Breaker with Resilience4j (api-gateway)
+- [x] Spring Cloud Gateway — dynamic routes loaded from PostgreSQL (`gateway_routes` table)
+- [x] Flyway as a standalone `migration` module
+- [x] Circuit Breaker with Resilience4j (`api-gateway`)
+- [x] Redis — rate limit state + config cache
+- [x] Integration tests with Testcontainers (PostgreSQL + Redis)
+
+### Admin Console (`gateway-ui`)
+- [x] Route management — create, edit, delete, enable/disable, permission assignment
+- [x] Rate limit management — view global default, create/edit/delete per-user overrides
 
 ---
 
@@ -100,7 +127,7 @@ Permissions follow the `resource:action` convention and are embedded directly in
 
 ```json
 {
-  "sub": "user-uuid",
+  "sub": "alice@example.com",
   "roles": ["ROLE_ADMIN", "ROLE_USER"],
   "permissions": [
     "user:read",
@@ -116,90 +143,195 @@ The `resource-service` validates these permissions using Spring Security method-
 
 ---
 
+## 🚦 Rate Limiting
+
+### How It Works
+
+Every authenticated request passes through `RateLimitFilter` (order `-99`, runs after JWT validation at `-100`):
+
+```
+Request
+  │
+  ├── JwtAuthenticationFilter (-100) → validates JWT, extracts claims
+  │
+  └── RateLimitFilter (-99)
+        │
+        ├── Resolve bucket key
+        │     ├── Authenticated → "user:{username}"
+        │     └── Anonymous     → "ip:{clientIp}"
+        │
+        ├── Lookup config (RateLimitConfigService)
+        │     ├── Redis cache hit  → return [replenishRate, burstCapacity]
+        │     ├── DB: per-user override (username = ?)
+        │     ├── DB: global default (username IS NULL)
+        │     └── Fallback: application.yml
+        │
+        ├── Execute Redis Lua script (atomic Token Bucket)
+        │     ├── tokens > 0 → decrement, set headers, forward
+        │     └── tokens = 0 → 429 Too Many Requests
+        │
+        └── On Redis failure → fail-open (allow) or fail-closed (block)
+```
+
+### Config Priority
+
+```
+Per-User Override (rate_limit_config WHERE username = 'alice')
+      ↓ not found
+Global Default (rate_limit_config WHERE username IS NULL)
+      ↓ not found
+application.yml fallback (rate-limit.replenish-rate / burst-capacity)
+```
+
+### Redis Keys
+
+```
+rate_limit:user:alice@example.com.tokens      # token bucket state
+rate_limit:user:alice@example.com.timestamp   # last refill timestamp
+rate_limit:ip:203.0.113.42.tokens             # anonymous IP bucket
+rl_cfg:alice@example.com                      # config cache (TTL 5 min)
+rl_cfg:__default__                            # global default cache
+```
+
+### Admin API
+
+```
+GET    /api/admin/rate-limits              → list all configs
+GET    /api/admin/rate-limits/default      → global default
+GET    /api/admin/rate-limits/user/{user}  → per-user override
+POST   /api/admin/rate-limits              → create override (or update global if username null)
+PUT    /api/admin/rate-limits/{id}         → update (partial)
+DELETE /api/admin/rate-limits/{id}         → delete per-user override
+```
+
+Cache is automatically invalidated after every write operation.
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
 
 - Java 21
 - Docker & Docker Compose
-- PostgreSQL (or use the provided Compose file)
+- Node.js 20+ (for `gateway-ui`)
 
 ### Run with Docker Compose
 
 ```bash
+cp .env.example .env   # fill in your values
 docker compose up -d
 ```
 
-### Run individually
+This starts PostgreSQL, Redis, and Redis Commander (UI at `http://localhost:8090`).
+
+### Run services individually
 
 ```bash
-# 1. Run database migrations first
-cd db-migration && ./mvnw spring-boot:run
+# 1. Start infrastructure
+docker compose up -d postgres redis
 
-# 2. Start auth-service
+# 2. Run database migrations
+cd migration && ./mvnw spring-boot:run
+
+# 3. Start auth-service
 cd auth-service && ./mvnw spring-boot:run
 
-# 3. Start resource-service
+# 4. Start resource-service
 cd resource-service && ./mvnw spring-boot:run
 
-# 4. Start api-gateway
+# 5. Start api-gateway
 cd api-gateway && ./mvnw spring-boot:run
+
+# 6. Start admin UI (optional)
+cd gateway-ui && npm install && npm run dev
 ```
+
+### Run tests
+
+```bash
+# Integration tests (requires Docker for Testcontainers)
+cd api-gateway && ./mvnw test
+```
+
+Testcontainers will spin up PostgreSQL and Redis automatically. No local infra needed.
 
 ---
 
 ## 📡 API Endpoints
 
-### Auth Service (via Gateway → `POST /auth/**`)
+### Auth Service (via Gateway)
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/auth/login` | Authenticate and receive tokens |
-| `POST` | `/auth/refresh` | Exchange refresh token for new access token |
-| `POST` | `/auth/logout` | Revoke current refresh token |
-| `GET` | `/auth/oauth2/google` | Initiate Google OAuth2 redirect flow |
-| `POST` | `/auth/oauth2/google/sdk` | Exchange Google ID token (SDK flow) |
+| `POST` | `/api/auth/login` | Authenticate and receive tokens |
+| `POST` | `/api/auth/register` | Register a new account |
+| `POST` | `/api/auth/refresh` | Exchange refresh token for new access token |
+| `POST` | `/api/auth/logout` | Revoke current refresh token |
+| `POST` | `/api/auth/logout-all` | Revoke all refresh tokens for the user |
+| `GET` | `/api/auth/google` | Initiate Google OAuth2 redirect flow |
+| `POST` | `/api/auth/google/sdk` | Exchange Google ID token (SDK flow) |
 
-### Resource Service (via Gateway → `GET /api/**`)
+### Resource Service (via Gateway)
 
-> All endpoints require a valid Bearer token.
+> All endpoints require a valid `Authorization: Bearer <accessToken>` header.
 
 | Method | Path | Required Permission |
 |---|---|---|
-| `GET` | `/api/users` | `user:read` |
-| `POST` | `/api/users` | `user:write` |
-| `DELETE` | `/api/users/{id}` | `user:delete` |
+| `GET` | `/api/resources/products` | `products:READ` |
 | *(add your own routes)* | | |
+
+### Gateway Admin API
+
+> Requires `ROLE_ADMIN`.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/admin/routes` | List all routes |
+| `POST` | `/api/admin/routes` | Create route |
+| `PUT` | `/api/admin/routes/{id}` | Update route |
+| `DELETE` | `/api/admin/routes/{id}` | Delete route |
+| `PATCH` | `/api/admin/routes/{id}/toggle` | Enable / disable route |
+| `GET` | `/api/admin/rate-limits` | List all rate limit configs |
+| `GET` | `/api/admin/rate-limits/default` | Get global default |
+| `GET` | `/api/admin/rate-limits/user/{username}` | Get per-user override |
+| `POST` | `/api/admin/rate-limits` | Create per-user override |
+| `PUT` | `/api/admin/rate-limits/{id}` | Update config |
+| `DELETE` | `/api/admin/rate-limits/{id}` | Delete per-user override |
 
 ---
 
 ## ⚙️ Configuration
 
-### `api-gateway` — `application.yml` (key sections)
+### `api-gateway/application.yml`
 
 ```yaml
 spring:
-  cloud:
-    gateway:
-      routes:
-        - id: auth-service
-          uri: lb://auth-service
-          predicates:
-            - Path=/auth/**
-        - id: resource-service
-          uri: lb://resource-service
-          predicates:
-            - Path=/api/**
-          filters:
-            - name: CircuitBreaker
-              args:
-                name: resourceServiceCB
-                fallbackUri: forward:/fallback
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+jwt:
+  secret: ${JWT_SECRET}
+
+rate-limit:
+  replenish-rate: 20        # fallback: tokens/s if DB unavailable
+  burst-capacity: 40        # fallback: max tokens in bucket
+  allow-on-redis-failure: true   # fail-open when Redis is down
+  excluded-paths:
+    - /api/auth/login
+    - /api/auth/register
+    - /api/auth/refresh
+    - /api/auth/logout
+    - /oauth2/**
+    - /actuator/**
 
 resilience4j:
   circuitbreaker:
     instances:
-      resourceServiceCB:
+      authServiceCB:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
@@ -208,11 +340,10 @@ resilience4j:
 ### `auth-service` — JWT & OAuth2
 
 ```yaml
-app:
-  jwt:
-    secret: ${JWT_SECRET}
-    access-token-expiry: 900        # 15 minutes
-    refresh-token-expiry: 604800    # 7 days
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiry: 900      # 15 minutes
+  refresh-token-expiry: 604800  # 7 days
 
 spring:
   security:
@@ -226,24 +357,40 @@ spring:
 
 ---
 
-## 🗂️ Database Migration
+## 🗂️ Database Schema
 
-Flyway migrations live in `db-migration/src/main/resources/db/migration/`:
+Flyway migrations in `migration/src/main/resources/db/auth/`:
 
-```
-V1__create_users_table.sql
-V2__create_roles_table.sql
-V3__create_permissions_table.sql
-V4__seed_default_roles.sql
-...
-```
+| Version | Description |
+|---|---|
+| `V1.0` | Init — users, roles, user_roles |
+| `V1.2` | RBAC tables — permissions, role_permissions |
+| `V1.4` | Gateway routes (`gateway_routes`) |
+| `V1.5` | Route permissions (`route_permissions`) |
+| `V1.6` | Rate limit config (`rate_limit_config`) |
 
-Run migrations standalone:
+Run migrations:
 
 ```bash
-cd db-migration
-./mvnw flyway:migrate
+cd migration && ./mvnw flyway:migrate
 ```
+
+### `rate_limit_config` table
+
+```sql
+CREATE TABLE rate_limit_config (
+    id              BIGSERIAL    PRIMARY KEY,
+    username        VARCHAR(255) NULL UNIQUE,  -- NULL = global default
+    replenish_rate  INT          NOT NULL,
+    burst_capacity  INT          NOT NULL,
+    enabled         BOOLEAN      NOT NULL DEFAULT TRUE,
+    description     VARCHAR(500) NULL,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+```
+
+`username = NULL` is the global default row (one per system, cannot be deleted).
 
 ---
 
@@ -252,32 +399,48 @@ cd db-migration
 ```
 rbac-gateway/
 ├── api-gateway/
-│   ├── src/main/java/.../
-│   │   ├── filter/         # JWT global filter
-│   │   ├── config/         # Route & security config
-│   │   └── fallback/       # Circuit breaker fallback controller
-│   └── src/main/resources/application.yml
+│   └── src/main/java/.../
+│       ├── filter/              # JwtAuthenticationFilter, RateLimitFilter
+│       ├── ratelimit/           # RateLimitConfigService, entity, repo, admin API
+│       ├── config/              # GatewayProperties, RateLimitProperties
+│       ├── route/               # DatabaseRouteDefinitionRepository
+│       ├── admin/               # AdminRouteController, AdminRouteService
+│       └── validator/           # JwtValidator
+│   └── src/main/resources/
+│       ├── application.yml
+│       └── scripts/
+│           └── rate_limit.lua   # Token Bucket Lua script
 │
 ├── auth-service/
-│   ├── src/main/java/.../
-│   │   ├── controller/     # Login, refresh, OAuth2 endpoints
-│   │   ├── service/        # Token service, OAuth2 service
-│   │   ├── security/       # JWT provider, token revocation
-│   │   └── entity/         # User, Role, RefreshToken
-│   └── src/main/resources/application.yml
+│   └── src/main/java/.../
+│       ├── controller/          # Login, refresh, OAuth2 endpoints
+│       ├── service/             # TokenService, OAuth2Service
+│       ├── security/            # JWT provider, token revocation
+│       └── entity/              # User, Role, RefreshToken
 │
 ├── resource-service/
-│   ├── src/main/java/.../
-│   │   ├── controller/     # Protected resource endpoints
-│   │   ├── security/       # PermissionEvaluator, RBAC config
-│   │   └── entity/
-│   └── src/main/resources/application.yml
+│   └── src/main/java/.../
+│       ├── controller/          # Protected resource endpoints
+│       └── security/            # PermissionEvaluator, RBAC config
 │
-├── db-migration/
-│   └── src/main/resources/db/migration/
+├── migration/
+│   └── src/main/resources/db/auth/
 │       └── V*.sql
 │
-└── docker-compose.yml
+├── gateway-ui/                  # React + Vite + MUI admin console
+│   └── src/
+│       ├── api/                 # routeApi.js, rateLimitApi.js
+│       ├── hooks/               # useRoutes.js, useRateLimits.js
+│       ├── pages/               # RoutesPage.jsx, RateLimitPage.jsx
+│       └── components/
+│           ├── routes/          # RouteTable, RouteFormDialog, ...
+│           ├── ratelimit/       # RateLimitTable, RateLimitFormDialog, ...
+│           └── layout/          # Sidebar
+│
+├── docker/
+│   └── redis/redis.conf
+├── docker-compose.yml
+└── .env.example
 ```
 
 ---
@@ -287,22 +450,24 @@ rbac-gateway/
 ```
 Client
   │
-  │  POST /auth/login  {username, password}
+  │  POST /api/auth/login  { username, password }
   ▼
 API Gateway ──► Auth Service
                   │  validates credentials
                   │  returns { accessToken, refreshToken }
   ◄──────────────
   │
-  │  GET /api/resource   Authorization: Bearer <accessToken>
+  │  GET /api/resources/products   Authorization: Bearer <accessToken>
   ▼
 API Gateway
-  │  JWT Filter: validates signature + expiry
-  │  extracts roles & permissions from claims
+  │  JwtAuthenticationFilter (-100): validate signature + expiry
+  │  RateLimitFilter (-99): Token Bucket check via Redis
+  │    ├── allowed → forward + add X-RateLimit-* headers
+  │    └── blocked → 429 Too Many Requests (JSON)
   ▼
 Resource Service
-  │  @PreAuthorize("hasPermission('user', 'read')")
-  │  or custom PermissionEvaluator checks JWT claims
+  │  @PreAuthorize / PermissionEvaluator checks JWT claims
+  │  e.g. requires "products:READ"
   ▼
   Response 200 OK  (or 403 Forbidden)
 ```
@@ -311,48 +476,61 @@ Resource Service
 
 ## 🌍 Environment Variables
 
-Copy `.env.example` to `.env` and fill in your values before running.
+Copy `.env.example` to `.env` before running.
 
 ### Database
 
-| Variable | Description | Example |
+| Variable | Description | Default |
 |---|---|---|
-| `DB_HOST` | PostgreSQL host | `localhost` |
-| `DB_PORT` | PostgreSQL port | `5432` |
-| `DB_NAME` | Database name | `rbac_db` |
+| `DB_URL` | R2DBC PostgreSQL URL | `r2dbc:postgresql://localhost:5432/postgres` |
 | `DB_USERNAME` | Database username | `postgres` |
-| `DB_PASSWORD` | Database password | `secret` |
+| `DB_PASSWORD` | Database password | — |
 
-### JWT (`auth-service`)
+### Redis
+
+| Variable | Description | Default |
+|---|---|---|
+| `REDIS_HOST` | Redis hostname | `localhost` |
+| `REDIS_PORT` | Redis port | `6379` |
+| `REDIS_PASSWORD` | Redis password (if any) | — |
+
+### JWT
 
 | Variable | Description | Example |
 |---|---|---|
-| `JWT_SECRET` | HMAC signing secret (min 256-bit) | `your-256-bit-secret-key` |
-| `JWT_ACCESS_TOKEN_EXPIRY` | Access token TTL in seconds | `900` (15 min) |
-| `JWT_REFRESH_TOKEN_EXPIRY` | Refresh token TTL in seconds | `604800` (7 days) |
+| `JWT_SECRET` | HMAC signing secret (Base64, min 256-bit) | *(generate with `openssl rand -base64 32`)* |
 
-### Google OAuth2 (`auth-service`)
+### Google OAuth2
 
 | Variable | Description | Where to get |
 |---|---|---|
 | `GOOGLE_CLIENT_ID` | OAuth2 client ID | [Google Cloud Console](https://console.cloud.google.com/) |
 | `GOOGLE_CLIENT_SECRET` | OAuth2 client secret | Google Cloud Console |
-| `GOOGLE_REDIRECT_URI` | Redirect URI after OAuth2 login | `http://localhost:8080/auth/oauth2/google/callback` |
 
-### Service URLs (`api-gateway`)
+### Internal
 
-| Variable | Description | Default |
-|---|---|---|
-| `AUTH_SERVICE_URL` | Auth service base URL | `http://localhost:8081` |
-| `RESOURCE_SERVICE_URL` | Resource service base URL | `http://localhost:8082` |
+| Variable | Description |
+|---|---|
+| `INTERNAL_SECRET` | Shared secret for service-to-service calls |
 
-### Circuit Breaker (`api-gateway`)
+---
 
-| Variable | Description | Default |
-|---|---|---|
-| `CB_SLIDING_WINDOW_SIZE` | Number of calls in sliding window | `10` |
-| `CB_FAILURE_RATE_THRESHOLD` | Failure % to open circuit | `50` |
-| `CB_WAIT_DURATION_OPEN` | Time in open state before half-open | `10s` |
+## 🧪 Testing
+
+Integration tests live in `api-gateway/src/test/` and use **Testcontainers** — no manual infra setup needed.
+
+| Test class | Coverage |
+|---|---|
+| `GatewayIntegrationTest` | Route forwarding, JWT validation, 401/403 flows |
+| `CircuitBreakerIntegrationTest` | Open/half-open/closed states, fallback responses |
+| `RateLimitIntegrationTest` | Token bucket behavior, per-user isolation, refill, excluded paths, 429 format |
+
+```bash
+cd api-gateway
+./mvnw test
+```
+
+Testcontainers pulls `postgres:16-alpine` and `redis:7-alpine` automatically on first run.
 
 ---
 
