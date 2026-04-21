@@ -79,6 +79,7 @@ A production-ready **microservices backend** with Role-Based Access Control, JWT
 | Cache | Redis (Reactive — `spring-boot-starter-data-redis-reactive`) |
 | Java | Java 21 |
 | Frontend | React 19 + Vite + MUI v7 |
+| Code Quality | SonarQube `2025.1` + JaCoCo |
 
 ---
 
@@ -114,6 +115,7 @@ A production-ready **microservices backend** with Role-Based Access Control, JWT
 - [x] Circuit Breaker with Resilience4j (`api-gateway`)
 - [x] Redis — rate limit state + config cache
 - [x] Integration tests with Testcontainers (PostgreSQL + Redis)
+- [x] SonarQube `2025.1` — static analysis + code coverage (JaCoCo)
 
 ### Admin Console (`gateway-ui`)
 - [x] Route management — create, edit, delete, enable/disable, permission assignment
@@ -223,7 +225,7 @@ cp .env.example .env   # fill in your values
 docker compose up -d
 ```
 
-This starts PostgreSQL, Redis, and Redis Commander (UI at `http://localhost:8090`).
+This starts PostgreSQL, Redis, Redis Commander (UI at `http://localhost:8090`), and SonarQube (UI at `http://localhost:9000`).
 
 ### Run services individually
 
@@ -440,6 +442,7 @@ rbac-gateway/
 ├── docker/
 │   └── redis/redis.conf
 ├── docker-compose.yml
+├── sonar-project.properties
 └── .env.example
 ```
 
@@ -531,6 +534,68 @@ cd api-gateway
 ```
 
 Testcontainers pulls `postgres:16-alpine` and `redis:7-alpine` automatically on first run.
+
+---
+
+## 📊 Code Quality — SonarQube
+
+The project is configured with **SonarQube 2025.1** (Community edition) and **JaCoCo** for code coverage across all three service modules.
+
+### Infrastructure
+
+SonarQube runs as a Docker service alongside the rest of the stack:
+
+```bash
+docker compose up -d sonarqube
+```
+
+UI available at **`http://localhost:9000`** (default credentials: `admin` / `admin`).
+
+> **First-time setup:** SonarQube stores its data in the `sonarqube` PostgreSQL database. Create it once before starting:
+> ```bash
+> docker exec -it rbac-postgres psql -U postgres -c "CREATE DATABASE sonarqube;"
+> ```
+> On Linux hosts, also run: `sudo sysctl -w vm.max_map_count=524288`
+
+### Running Analysis
+
+```bash
+# 1. Build + run tests + generate JaCoCo coverage reports
+./mvnw clean verify
+
+# 2. Push results to SonarQube (replace with your token)
+./mvnw sonar:sonar -Dsonar.token=<YOUR_TOKEN>
+```
+
+Or in a single command:
+
+```bash
+./mvnw clean verify sonar:sonar -Dsonar.token=<YOUR_TOKEN>
+```
+
+### Generating a Token
+
+1. Go to `http://localhost:9000` → **My Account → Security**
+2. Under **Generate Tokens**, enter a name and click **Generate**
+3. Copy the token — it's shown only once
+
+### What Gets Analyzed
+
+| Module | Sources | Coverage report |
+|---|---|---|
+| `api-gateway` | `src/main/java` | `target/site/jacoco/jacoco.xml` |
+| `auth-service` | `src/main/java` | `target/site/jacoco/jacoco.xml` |
+| `resource-service` | `src/main/java` | `target/site/jacoco/jacoco.xml` |
+
+The following are excluded from analysis and coverage metrics: `*Application.java`, `config/`, `entity/`, `dto/`, `exception/`, `migration/`.
+
+### Configuration Files
+
+| File | Purpose |
+|---|---|
+| `sonar-project.properties` | Multi-module scanner config (sources, tests, coverage paths, exclusions) |
+| `pom.xml` (root) | `sonar-maven-plugin` + `jacoco-maven-plugin` in `pluginManagement` |
+| Each module `pom.xml` | Activates JaCoCo; `maven-surefire-plugin` uses `@{argLine}` so the JaCoCo agent injects correctly |
 
 ---
 

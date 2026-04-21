@@ -144,11 +144,19 @@
 
     <build>
         <plugins>
+            <!-- JaCoCo — inherited config từ root, activate ở đây -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
+                    <!-- @{argLine} để JaCoCo agent tự inject, không bị override -->
                     <argLine>
+                        @{argLine}
                         -XX:+EnableDynamicAgentLoading
                         --add-opens java.base/java.lang=ALL-UNNAMED
                         --add-opens java.base/java.util=ALL-UNNAMED
