@@ -100,8 +100,6 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
-
-        <!-- Testcontainers -->
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -124,7 +122,22 @@
 
     <build>
         <plugins>
-            <!-- JaCoCo — inherited config từ root, activate ở đây -->
+            <!--
+                spring-boot-maven-plugin với classifier=exec:
+                - Tạo 2 artifact:
+                    auth-service-1.0-SNAPSHOT.jar       → plain jar (dùng bởi api-gateway dependency)
+                    auth-service-1.0-SNAPSHOT-exec.jar  → executable fat jar (dùng bởi Dockerfile)
+                - Nếu KHÔNG có classifier, plugin sẽ repackage đè lên plain jar
+                  → api-gateway mất dependency compile → build fail
+            -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <classifier>exec</classifier>
+                </configuration>
+            </plugin>
+
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>

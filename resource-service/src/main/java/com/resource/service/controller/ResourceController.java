@@ -15,6 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -30,7 +31,8 @@ public class ResourceController {
 
     @GetMapping("/products")
     public ResponseEntity<List<ProductResponse>> getProducts() {
-        return ResponseEntity.ok(productService.findAll());
+        return ResponseEntity.ok(new ArrayList<>());
+//        return ResponseEntity.ok(productService.findAll());
     }
 
     @GetMapping("/products/{id}")

@@ -34,14 +34,19 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
-
-        <!-- Redis Reactive (Rate Limiting) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
         </dependency>
-
-        <!-- R2DBC PostgreSQL -->
+        <!--
+            commons-pool2 BẮT BUỘC để Lettuce connection pool hoạt động.
+            Nếu thiếu, Spring Boot silently bỏ qua toàn bộ lettuce.pool config
+            và fallback về 1 shared connection → queue tắc nghẽn dưới tải cao.
+        -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-pool2</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-r2dbc</artifactId>
@@ -50,8 +55,6 @@
             <groupId>org.postgresql</groupId>
             <artifactId>r2dbc-postgresql</artifactId>
         </dependency>
-
-        <!-- JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
@@ -69,15 +72,12 @@
             <version>0.13.0</version>
             <scope>runtime</scope>
         </dependency>
-
-        <!-- Shared DTOs từ auth-service -->
         <dependency>
             <groupId>org.auth.service</groupId>
             <artifactId>auth-service</artifactId>
             <version>1.0-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
-
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -100,16 +100,12 @@
             <artifactId>reactor-test</artifactId>
             <scope>test</scope>
         </dependency>
-
-        <!-- WireMock -->
         <dependency>
             <groupId>org.wiremock</groupId>
             <artifactId>wiremock-standalone</artifactId>
             <version>${wiremock.version}</version>
             <scope>test</scope>
         </dependency>
-
-        <!-- Testcontainers -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-testcontainers</artifactId>
@@ -133,28 +129,27 @@
             <version>${testcontainers.version}</version>
             <scope>test</scope>
         </dependency>
-        <!-- JDBC driver cần cho Testcontainers PostgreSQL init scripts -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>test</scope>
         </dependency>
-
     </dependencies>
 
     <build>
         <plugins>
-            <!-- JaCoCo — inherited config từ root, activate ở đây -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <!-- @{argLine} để JaCoCo agent tự inject, không bị override -->
                     <argLine>
                         @{argLine}
                         -XX:+EnableDynamicAgentLoading

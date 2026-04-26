@@ -23,8 +23,13 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private final JwtValidator jwtValidator;
     private final RbacPermissionChecker rbacChecker;
+
+    // Dùng chung 1 instance AntPathMatcher — thread-safe, tránh allocate mỗi request
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
+
     private static final List<String> PUBLIC_PATHS = List.of(
             "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout",
+            "/api/auth/validate",
             "/api/auth/google", "/oauth2/**", "/login/oauth2/**"
     );
 
@@ -50,12 +55,10 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
         return jwtValidator.validate(token)
                 .flatMap(claims -> {
-                    // Admin paths: chỉ cho phép ROLE_ADMIN
                     if (isAdminPath(path) && !claims.roles().contains("ROLE_ADMIN")) {
                         return forbidden(exchange);
                     }
 
-                    // RBAC check cho non-admin paths
                     if (!isAdminPath(path) && !rbacChecker.hasPermission(claims.permissions(), method, path)) {
                         return forbidden(exchange);
                     }
@@ -63,8 +66,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                     ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
                             .header("X-User-Name", claims.username())
                             .header("X-User-Roles", String.join(",", claims.roles()))
-                            .header("X-User-Permissions", String.join(",", claims.permissions())) // ✅ optional
+                            .header("X-User-Permissions", String.join(",", claims.permissions()))
+                            // Đính kèm token đã validated vào attribute để RateLimitFilter tái dụng,
+                            // tránh parse JWT lần thứ 2
                             .build();
+
+                    exchange.getAttributes().put("jwt.claims", claims);
 
                     return chain.filter(exchange.mutate().request(mutatedRequest).build());
                 })
@@ -72,13 +79,11 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isPublicPath(String path) {
-        AntPathMatcher matcher = new AntPathMatcher();
-        return PUBLIC_PATHS.stream().anyMatch(publicPath -> matcher.match(publicPath, path));
+        return PUBLIC_PATHS.stream().anyMatch(p -> PATH_MATCHER.match(p, path));
     }
 
     private boolean isAdminPath(String path) {
-        AntPathMatcher matcher = new AntPathMatcher();
-        return ADMIN_PATHS.stream().anyMatch(adminPath -> matcher.match(adminPath, path));
+        return ADMIN_PATHS.stream().anyMatch(p -> PATH_MATCHER.match(p, path));
     }
 
     private Mono<Void> unauthorized(ServerWebExchange exchange) {

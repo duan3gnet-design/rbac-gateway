@@ -14,7 +14,14 @@ spring:
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
       connect-timeout: 2s
-      timeout: 1s
+      timeout: 3s          # tăng từ 1s → 3s, tránh timeout khi burst
+      lettuce:
+        pool:
+          # Lettuce connection pool cho rate limit Lua script
+          # Mặc định Lettuce dùng 1 connection shared — pool giúp throughput cao hơn
+          min-idle: 4
+          max-idle: 16
+          max-active: 32
 
   # ==================== R2DBC ====================
   r2dbc:
@@ -22,13 +29,17 @@ spring:
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD}
     pool:
-      initial-size: 2
-      max-size: 10
+      initial-size: 10
+      max-size: 50
       max-idle-time: 30m
+      max-acquire-time: 3s   # timeout acquire connection thay vì chờ vô hạn
 
   # ==================== GATEWAY ====================
   cloud:
     gateway:
+#      httpclient:
+#        pool:
+#          type: ELASTIC
       server:
         webflux:
           trusted-proxies: ".*"
@@ -42,9 +53,9 @@ jwt:
 # ==================== RATE LIMIT ====================
 rate-limit:
   # Số request/giây được nạp lại vào bucket (sustained rate)
-  replenish-rate: 20
+  replenish-rate: 200000
   # Số token tối đa trong bucket (burst cho phép)
-  burst-capacity: 40
+  burst-capacity: 400000
   # Fallback khi Redis down: true = cho qua, false = chặn
   allow-on-redis-failure: true
   # Public paths không áp dụng rate limit (dùng AntPathMatcher)

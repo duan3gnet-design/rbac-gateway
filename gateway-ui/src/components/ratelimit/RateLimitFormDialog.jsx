@@ -210,7 +210,7 @@ export default function RateLimitFormDialog({ open, onClose, onSave, initialData
               hint="Số token được nạp lại vào bucket mỗi giây. Quyết định tốc độ bền vững (sustained rate)."
               value={form.replenishRate}
               onChange={set('replenishRate')}
-              max={500}
+              max={50000}
               color="#3b5bdb"
             />
             {errors.replenishRate && (
@@ -226,7 +226,7 @@ export default function RateLimitFormDialog({ open, onClose, onSave, initialData
               value={form.burstCapacity}
               onChange={set('burstCapacity')}
               min={form.replenishRate}
-              max={1000}
+              max={100000}
               color="#7c3aed"
             />
             {errors.burstCapacity && (

@@ -2,7 +2,7 @@ package com.api.gateway.filter;
 
 import com.api.gateway.config.RateLimitProperties;
 import com.api.gateway.admin.ratelimit.RateLimitConfigService;
-import com.api.gateway.validator.JwtValidator;
+import com.auth.service.dto.ClaimsResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,7 +12,6 @@ import org.springframework.core.Ordered;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.scripting.support.ResourceScriptSource;
@@ -30,21 +29,8 @@ import java.util.Map;
  *
  * <p>Order: -99 (chạy sau JwtAuthenticationFilter -100, trước downstream proxy)</p>
  *
- * <p><b>Config lookup order</b> (delegate sang {@link RateLimitConfigService}):
- * <ol>
- *   <li>Redis cache (TTL 5 phút)</li>
- *   <li>DB: per-user override</li>
- *   <li>DB: global default</li>
- *   <li>Fallback: {@code application.yml}</li>
- * </ol>
- * </p>
- *
- * <p><b>Bucket key strategy:</b>
- * <ul>
- *   <li>Authenticated: {@code rate_limit:user:{username}}</li>
- *   <li>Anonymous: {@code rate_limit:ip:{clientIp}}</li>
- * </ul>
- * </p>
+ * <p>Claims được đọc từ exchange attribute {@code jwt.claims} do JwtAuthenticationFilter
+ * đặt vào — tránh parse JWT lần 2 trên mỗi request.</p>
  */
 @Slf4j
 @Component
@@ -52,12 +38,12 @@ import java.util.Map;
 public class RateLimitFilter implements GlobalFilter, Ordered {
 
     private final ReactiveStringRedisTemplate redisTemplate;
-    private final JwtValidator                jwtValidator;
     private final RateLimitProperties         fallbackProperties;
     private final RateLimitConfigService      rateLimitConfigService;
     private final ObjectMapper                objectMapper;
 
-    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+    // Dùng chung 1 instance — thread-safe
+    private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     /** Lua script: Token Bucket algorithm — atomic check-and-decrement */
     private static final DefaultRedisScript<List<Long>> RATE_LIMIT_SCRIPT;
@@ -78,43 +64,25 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        return resolveIdentity(exchange)
-                .flatMap(identity -> {
-                    // identity = "user:{username}" hoặc "ip:{ip}"
-                    boolean isUser = identity.startsWith("user:");
-                    String  username = isUser ? identity.substring(5) : null;
+        // Đọc claims từ attribute — JwtAuthenticationFilter đã validate và đặt vào,
+        // không cần parse JWT lại
+        ClaimsResponse claims = exchange.getAttribute("jwt.claims");
+        String identity = (claims != null)
+                ? "user:" + claims.username()
+                : "ip:" + extractClientIp(exchange);
 
-                    Mono<int[]> configMono = isUser
-                            ? rateLimitConfigService.resolveConfig(username)
-                            : rateLimitConfigService.resolveGlobalDefault();
+        boolean isUser   = identity.startsWith("user:");
+        String  username = isUser ? identity.substring(5) : null;
 
-                    return configMono.flatMap(cfg ->
-                            checkRateLimit(exchange, chain, identity, cfg[0], cfg[1])
-                    );
-                });
+        Mono<int[]> configMono = isUser
+                ? rateLimitConfigService.resolveConfig(username)
+                : rateLimitConfigService.resolveGlobalDefault();
+
+        return configMono.flatMap(cfg ->
+                checkRateLimit(exchange, chain, identity, cfg[0], cfg[1])
+        );
     }
 
-    /**
-     * Xác định identity cho bucket.
-     * Ưu tiên: username từ JWT > IP address
-     */
-    private Mono<String> resolveIdentity(ServerWebExchange exchange) {
-        String authHeader = exchange.getRequest()
-                .getHeaders()
-                .getFirst(HttpHeaders.AUTHORIZATION);
-
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            return jwtValidator.validate(authHeader.substring(7))
-                    .map(claims -> "user:" + claims.username())
-                    .onErrorResume(e -> Mono.just("ip:" + extractClientIp(exchange)));
-        }
-
-        return Mono.just("ip:" + extractClientIp(exchange));
-    }
-
-    /**
-     * Thực hiện rate limit check bằng Lua script trên Redis.
-     */
     @SuppressWarnings("unchecked")
     private Mono<Void> checkRateLimit(
             ServerWebExchange exchange,
@@ -138,12 +106,12 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 .next()
                 .cast(List.class)
                 .flatMap(result -> {
-                    List<Long> results = (List<Long>) result;
-                    boolean allowed          = !results.isEmpty() && results.get(0) == 1L;
-                    long    tokensRemaining  = results.size() > 1 ? results.get(1) : 0L;
+                    List<Long> results       = (List<Long>) result;
+                    boolean    allowed       = !results.isEmpty() && results.get(0) == 1L;
+                    long       tokensLeft    = results.size() > 1 ? results.get(1) : 0L;
 
                     exchange.getResponse().getHeaders().add("X-RateLimit-Limit",          String.valueOf(burstCapacity));
-                    exchange.getResponse().getHeaders().add("X-RateLimit-Remaining",      String.valueOf(tokensRemaining));
+                    exchange.getResponse().getHeaders().add("X-RateLimit-Remaining",      String.valueOf(tokensLeft));
                     exchange.getResponse().getHeaders().add("X-RateLimit-Replenish-Rate", String.valueOf(replenishRate));
 
                     if (allowed) {
@@ -152,7 +120,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
 
                     log.warn("Rate limit exceeded — identity: {}, path: {}",
                             identity, exchange.getRequest().getPath().value());
-                    return tooManyRequests(exchange, tokensRemaining);
+                    return tooManyRequests(exchange, tokensLeft);
                 })
                 .onErrorResume(e -> {
                     log.error("Redis rate limit error for [{}]: {}", identity, e.getMessage());
@@ -189,15 +157,13 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
 
     private boolean isExcludedPath(String path) {
         return fallbackProperties.excludedPaths().stream()
-                .anyMatch(pattern -> pathMatcher.match(pattern, path));
+                .anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
     }
 
     private String extractClientIp(ServerWebExchange exchange) {
-        String xForwardedFor = exchange.getRequest()
-                .getHeaders()
-                .getFirst("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
-            return xForwardedFor.split(",")[0].trim();
+        String xff = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            return xff.split(",")[0].trim();
         }
         var remote = exchange.getRequest().getRemoteAddress();
         return remote != null ? remote.getAddress().getHostAddress() : "unknown";

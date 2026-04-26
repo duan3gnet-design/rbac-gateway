@@ -36,4 +36,15 @@
             <scope>runtime</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Tạo executable fat jar (spring-boot:repackage) -->
+            <!-- Dockerfile dùng java -jar trực tiếp, không cần layertools -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
 </project>

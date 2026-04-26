@@ -4,6 +4,7 @@ import com.api.gateway.config.RateLimitProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -89,10 +90,19 @@ public class RateLimitConfigService {
 
     /**
      * Invalidate toàn bộ cache config (gọi khi update global default).
+     *
+     * <p>Dùng SCAN thay vì KEYS để không blocking Redis event loop
+     * khi có nhiều key — quan trọng khi đang chạy dưới tải cao.</p>
      */
     public Mono<Void> invalidateAllConfigCache() {
-        return redisTemplate.keys(CACHE_PREFIX + "*")
-                .flatMap(redisTemplate::delete)
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(CACHE_PREFIX + "*")
+                .count(100)
+                .build();
+
+        return redisTemplate.scan(options)
+                .flatMap(key -> redisTemplate.delete(key)
+                        .doOnSuccess(v -> log.debug("Cache key deleted: {}", key)))
                 .doOnComplete(() -> log.debug("All rate limit config cache invalidated"))
                 .then();
     }

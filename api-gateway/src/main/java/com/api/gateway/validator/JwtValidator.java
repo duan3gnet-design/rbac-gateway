@@ -2,9 +2,11 @@ package com.api.gateway.validator;
 
 import com.auth.service.dto.ClaimsResponse;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -22,22 +24,25 @@ public class JwtValidator {
     @Value("${jwt.secret}")
     private String secret;
 
-    private SecretKey getKey() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+    // Build parser 1 lần khi startup, tái dụng cho mọi request
+    // → tránh decode Base64 + allocate SecretKey mỗi lần validate
+    private JwtParser jwtParser;
+
+    @PostConstruct
+    public void init() {
+        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        this.jwtParser = Jwts.parser().verifyWith(key).build();
     }
 
     @SuppressWarnings("unchecked")
     public Mono<ClaimsResponse> validate(String token) {
         return Mono.fromCallable(() -> {
-            Claims claims = Jwts.parser()
-                    .verifyWith(getKey())
-                    .build()
+            Claims claims = jwtParser
                     .parseSignedClaims(token)
                     .getPayload();
 
             List<String> roles = claims.get("roles", List.class);
 
-            // ✅ Parse permissions từ JWT claim
             List<String> rawPermissions = claims.get("permissions", List.class);
             Set<String> permissions = rawPermissions != null
                     ? new HashSet<>(rawPermissions)

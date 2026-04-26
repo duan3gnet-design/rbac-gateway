@@ -410,8 +410,9 @@ rbac-gateway/
 │       └── validator/           # JwtValidator
 │   └── src/main/resources/
 │       ├── application.yml
+│       ├── application-perf.yml
 │       └── scripts/
-│           └── rate_limit.lua   # Token Bucket Lua script
+│           └── rate_limit.lua   # Token Bucket Lua script (optimized)
 │
 ├── auth-service/
 │   └── src/main/java/.../
@@ -438,6 +439,15 @@ rbac-gateway/
 │           ├── routes/          # RouteTable, RouteFormDialog, ...
 │           ├── ratelimit/       # RateLimitTable, RateLimitFormDialog, ...
 │           └── layout/          # Sidebar
+│
+├── k6/
+│   ├── scenarios/
+│   │   ├── auth_flow.js         # Login → token → resource flow
+│   │   ├── rate_limit.js        # Throughput + 429 behavior
+│   │   └── circuit_breaker.js   # Downstream failure simulation
+│   ├── helpers/
+│   │   └── auth.js              # Shared login helper
+│   └── script.js                # Entry point
 │
 ├── docker/
 │   └── redis/redis.conf
@@ -534,6 +544,142 @@ cd api-gateway
 ```
 
 Testcontainers pulls `postgres:16-alpine` and `redis:7-alpine` automatically on first run.
+
+---
+
+## ⚡ Performance Testing
+
+### Stack
+
+| Tool | Role |
+|---|---|
+| [k6](https://k6.io/) | Load generator — scripted scenarios, thresholds, checks |
+| Docker Compose | Spin up full stack với `perf` profile |
+
+### Setup
+
+**1. Build và chạy full stack**
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+
+# Đợi tất cả service healthy (~60s)
+docker compose ps
+```
+
+**2. Cài k6**
+
+```bash
+# macOS
+brew install k6
+
+# Windows
+winget install k6
+
+# Hoặc chạy qua Docker, không cần cài local
+docker run --rm -i \
+  --network rbac-gateway_rbac-network \
+  -e BASE_URL=http://api-gateway:8080 \
+  grafana/k6 run - < k6/script.js
+```
+
+---
+
+### Kịch bản test
+
+Scripts nằm trong `k6/scenarios/`:
+
+**`auth_flow.js` — Smoke + Load test**
+
+```js
+export const options = {
+  scenarios: {
+    smoke: {
+      executor: 'constant-vus',
+      vus: 5, duration: '30s',
+    },
+    load: {
+      executor: 'ramping-vus',
+      stages: [
+        { duration: '30s', target: 50  },  // ramp up
+        { duration: '2m',  target: 200 },  // sustained
+        { duration: '30s', target: 0   },  // ramp down
+      ],
+    },
+  },
+  thresholds: {
+    http_req_duration: ['p(95)<500', 'p(99)<1000'],
+    http_req_failed:   ['rate<0.01'],
+  },
+};
+```
+
+**`rate_limit.js` — Burst test**
+
+```js
+export const options = {
+  scenarios: {
+    burst: {
+      executor: 'constant-arrival-rate',
+      rate: 500,          // 500 req/s
+      timeUnit: '1s',
+      duration: '30s',
+      preAllocatedVUs: 100,
+    },
+  },
+};
+```
+
+**`circuit_breaker.js` — Failure simulation**
+
+Dừng `resource-service` trong lúc test để xác nhận Circuit Breaker mở đúng, fallback hoạt động, và tự phục hồi về HALF_OPEN sau `waitDurationInOpenState`.
+
+---
+
+### Chạy test
+
+```bash
+# Chạy tất cả scenario
+k6 run k6/script.js
+
+# Chỉ chạy auth flow
+k6 run k6/scenarios/auth_flow.js
+
+# Chạy với BASE_URL tùy chỉnh
+k6 run -e BASE_URL=http://localhost:8080 k6/scenarios/auth_flow.js
+
+# Xuất JSON để phân tích sau
+k6 run --out json=k6/results.json k6/script.js
+```
+
+---
+
+### Kết quả đo được
+
+> Môi trường: Docker Compose trên Windows 11 / WSL2, mỗi service giới hạn **1 CPU + 512 MB RAM**, api gateway giới hạn **4 CPU + 3GB RAM**.
+
+#### Trực tiếp vs qua Gateway
+
+| Metric | Direct `:8081` | Via Gateway `:8080` | Overhead |
+|---|----------------|---------------------|----------|
+| Throughput | **3867 req/s** | **2981 req/s**     | ~23%     |
+| p50 latency | 3 ms          | 5 ms              | +2 ms    |
+| p95 latency | 17 ms         | 15 ms             | -2 ms    |
+| p99 latency | 66 ms         | 32 ms             | -34 ms   |
+| Error rate | 0%             | 0%                  | —        |
+
+> Gateway overhead ~2–3 ms/request: JWT validation + Redis rate limit (Lua) + route cache lookup + header mutation + Circuit Breaker state check.
+
+### Các vấn đề đã phát hiện và xử lý
+
+| Vấn đề | Nguyên nhân gốc | Fix |
+|---|---|---|
+| Redis command timed out (lần 1) | `appendonly yes` → fsync blocking dưới tải | Tắt AOF + RDB snapshot trong `redis.conf` |
+| Redis command timed out (lần 1) | Redis `timeout: 1s` quá thấp | Tăng lên `3s` trong `application.yml` |
+| Redis command timed out (lần 1) | `KEYS *` blocking trong `invalidateAllConfigCache` | Thay bằng `SCAN` với `count(100)` |
+| Redis command timed out (lần 2) | `commons-pool2` thiếu → Lettuce dùng 1 shared connection | Thêm dependency + `pool.enabled: true` |
+| Redis command timed out (lần 2) | Lua script gọi 4 Redis commands riêng lẻ | Gộp thành `MGET` + `MSET` → 3 round-trips |
 
 ---
 

@@ -1,0 +1,19 @@
+# application-perf.yml — resource-service
+# Profile override cho performance test trong Docker
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:postgres}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:12345}
+
+  jpa:
+    show-sql: false
+
+app:
+  auth-service:
+    url: ${AUTH_SERVICE_URL:http://auth-service:8081}
+
+logging:
+  level:
+    root: WARN

@@ -64,6 +64,20 @@
     <build>
         <pluginManagement>
             <plugins>
+                <!-- Spring Boot repackage — tạo executable fat jar với layertools support -->
+                <!-- Khai báo ở đây để tất cả module kế thừa, chỉ cần reference ngắn trong module -->
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>repackage</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+
                 <!-- JaCoCo — code coverage agent -->
                 <plugin>
                     <groupId>org.jacoco</groupId>

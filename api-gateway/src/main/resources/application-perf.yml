@@ -1,0 +1,43 @@
+# application-perf.yml — api-gateway
+# Profile override cho performance test trong Docker
+
+spring:
+  r2dbc:
+    url: r2dbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:postgres}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:12345}
+    pool:
+      initial-size: 10
+      max-size: 50
+      max-idle-time: 30m
+      max-acquire-time: 3s
+
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: 2s
+      timeout: 3s
+      lettuce:
+        pool:
+          enabled: true      # BẮT BUỘC phải khai báo tường minh, cùng với commons-pool2 trong pom
+          min-idle: 8        # pre-warm connections, tránh cold start khi burst
+          max-idle: 16
+          max-active: 32     # = số Netty event loop threads * 2 (default 2*CPU)
+          max-wait: 1s       # timeout chờ lấy connection từ pool thay vì block vô hạn
+
+  reactor:
+    netty:
+      http:
+        server:
+          access-log: false
+
+logging:
+  level:
+    root: WARN
+    org.springframework.cloud.gateway: WARN
+    io.github.resilience4j: WARN
+    com.api.gateway: WARN
+    io.lettuce: WARN
+    io.r2dbc: WARN

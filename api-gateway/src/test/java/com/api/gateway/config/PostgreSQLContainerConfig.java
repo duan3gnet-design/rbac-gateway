@@ -92,11 +92,59 @@ public class PostgreSQLContainerConfig {
                     CONSTRAINT chk_burst_gte_rate CHECK (burst_capacity >= replenish_rate)
                 );
 
+                CREATE TABLE IF NOT EXISTS resources (
+                    id   BIGSERIAL    PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL UNIQUE
+                );
+
+                CREATE TABLE IF NOT EXISTS actions (
+                    id   BIGSERIAL   PRIMARY KEY,
+                    name VARCHAR(50) NOT NULL UNIQUE
+                );
+
+                CREATE TABLE IF NOT EXISTS permissions (
+                    id          BIGSERIAL    PRIMARY KEY,
+                    role        VARCHAR(100) NOT NULL,
+                    resource_id BIGINT       NOT NULL REFERENCES resources(id),
+                    action_id   BIGINT       NOT NULL REFERENCES actions(id),
+                    UNIQUE (role, resource_id, action_id)
+                );
+
+                CREATE TABLE IF NOT EXISTS route_permissions (
+                    route_id      VARCHAR(100) NOT NULL REFERENCES gateway_routes(id) ON DELETE CASCADE,
+                    permission_id BIGINT       NOT NULL REFERENCES permissions(id)    ON DELETE CASCADE,
+                    PRIMARY KEY (route_id, permission_id)
+                );
+
+                -- ── Rate Limit seed ────────────────────────────────────────────────────
                 -- Global default: replenishRate=5, burstCapacity=5 (khớp với application-test.yml)
                 INSERT INTO rate_limit_config (username, replenish_rate, burst_capacity, description)
                 VALUES (NULL, 5, 5, 'Test global default')
                 ON CONFLICT DO NOTHING;
 
+                -- ── RBAC seed ──────────────────────────────────────────────────────────
+                INSERT INTO resources (name) VALUES ('products'), ('orders'), ('users'), ('profile')
+                ON CONFLICT DO NOTHING;
+
+                INSERT INTO actions (name) VALUES ('READ'), ('CREATE'), ('UPDATE'), ('DELETE')
+                ON CONFLICT DO NOTHING;
+
+                -- ROLE_ADMIN có tất cả permissions
+                INSERT INTO permissions (role, resource_id, action_id)
+                SELECT 'ROLE_ADMIN', r.id, a.id FROM resources r, actions a
+                ON CONFLICT DO NOTHING;
+
+                -- ROLE_USER có permissions giới hạn
+                INSERT INTO permissions (role, resource_id, action_id)
+                VALUES
+                    ('ROLE_USER', (SELECT id FROM resources WHERE name='products'), (SELECT id FROM actions WHERE name='READ')),
+                    ('ROLE_USER', (SELECT id FROM resources WHERE name='orders'),   (SELECT id FROM actions WHERE name='READ')),
+                    ('ROLE_USER', (SELECT id FROM resources WHERE name='orders'),   (SELECT id FROM actions WHERE name='CREATE')),
+                    ('ROLE_USER', (SELECT id FROM resources WHERE name='profile'),  (SELECT id FROM actions WHERE name='READ')),
+                    ('ROLE_USER', (SELECT id FROM resources WHERE name='profile'),  (SELECT id FROM actions WHERE name='UPDATE'))
+                ON CONFLICT DO NOTHING;
+
+                -- ── Gateway Routes seed ────────────────────────────────────────────────
                 INSERT INTO gateway_routes (id, uri, predicates, filters, route_order) VALUES
 
                 ('auth-login', '%1$s',
@@ -127,7 +175,16 @@ public class PostgreSQLContainerConfig {
                 ('resource-service', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/**"}}]',
                  '[{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
-                 6);
+                 6)
+
+                ON CONFLICT DO NOTHING;
+
+                -- resource-service route yêu cầu ROLE_USER permissions
+                INSERT INTO route_permissions (route_id, permission_id)
+                SELECT 'resource-service', p.id
+                FROM permissions p
+                WHERE p.role = 'ROLE_USER'
+                ON CONFLICT DO NOTHING;
                 """.formatted(wireMockUri);
     }
 }
