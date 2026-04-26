@@ -588,7 +588,9 @@ docker run --rm -i \
 
 ### Kịch bản test
 
-Scripts nằm trong `k6/scenarios/`:
+JMeter test plan: [RBAC Gateway.jmx](performance-test/RBAC%20Gateway.jmx)
+
+K6 Scripts nằm trong `k6/scenarios/`:
 
 **`auth_flow.js` — Smoke + Load test**
 
@@ -637,7 +639,7 @@ Dừng `resource-service` trong lúc test để xác nhận Circuit Breaker mở
 
 ---
 
-### Chạy test
+### Chạy test k6
 
 ```bash
 # Chạy tất cả scenario
