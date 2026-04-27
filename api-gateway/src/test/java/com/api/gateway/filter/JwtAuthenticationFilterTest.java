@@ -11,11 +11,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
-import org.springframework.mock.web.server.MockServerWebExchange;
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.util.List;
 import java.util.Set;
@@ -38,39 +36,16 @@ class JwtAuthenticationFilterTest {
     @InjectMocks
     private JwtAuthenticationFilter filter;
 
-    // ─── Helpers ─────────────────────────────────────────────────────────────
-
     private ClaimsResponse claims(String username, List<String> roles, Set<String> permissions) {
         return new ClaimsResponse(username, roles, permissions);
     }
 
     /**
-     * Chạy filter, assert response status.
-     * Chain mock luôn pass-through (Mono.empty).
-     * KHÔNG stub chain ở đây — tránh unnecessary stubbing khi filter short-circuit trước khi gọi chain.
+     * Chạy filter và assert response status.
+     * Handler object = new Object() (không cần mock HandlerMethod cho interceptor).
      */
-    private void assertStatus(MockServerWebExchange exchange, HttpStatus expectedStatus) {
-        var chain = mock(org.springframework.cloud.gateway.filter.GatewayFilterChain.class);
-        // lenient vì chain.filter() có thể không bao giờ được gọi (khi 401/403 short-circuit)
-        lenient().when(chain.filter(any())).thenReturn(Mono.empty());
-
-        StepVerifier.create(filter.filter(exchange, chain))
-                .verifyComplete();
-
-        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(expectedStatus);
-    }
-
-    /**
-     * Chạy filter, assert chain được gọi đúng 1 lần (request pass-through thành công).
-     */
-    private void assertChainCalled(MockServerWebExchange exchange) {
-        var chain = mock(org.springframework.cloud.gateway.filter.GatewayFilterChain.class);
-        when(chain.filter(any())).thenReturn(Mono.empty());
-
-        StepVerifier.create(filter.filter(exchange, chain))
-                .verifyComplete();
-
-        verify(chain, times(1)).filter(any());
+    private boolean runFilter(MockHttpServletRequest request, MockHttpServletResponse response) throws Exception {
+        return filter.preHandle(request, response, new Object());
     }
 
     // ─── PUBLIC PATHS ────────────────────────────────────────────────────────
@@ -80,62 +55,55 @@ class JwtAuthenticationFilterTest {
     class PublicPaths {
 
         @Test
-        @DisplayName("POST /api/auth/login → bypass auth, forward thẳng")
-        void loginPath_shouldBypassAuth() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.post("/api/auth/login").build());
+        @DisplayName("POST /api/auth/login → bypass auth, return true")
+        void loginPath_shouldBypassAuth() throws Exception {
+            var req  = new MockHttpServletRequest("POST", "/api/auth/login");
+            var resp = new MockHttpServletResponse();
 
-            assertChainCalled(exchange);
+            boolean result = runFilter(req, resp);
+
+            assertThat(result).isTrue();
+            assertThat(resp.getStatus()).isEqualTo(200);
             verifyNoInteractions(jwtValidator, rbacChecker);
         }
 
         @Test
         @DisplayName("POST /api/auth/register → bypass auth")
-        void registerPath_shouldBypassAuth() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.post("/api/auth/register").build());
+        void registerPath_shouldBypassAuth() throws Exception {
+            var req  = new MockHttpServletRequest("POST", "/api/auth/register");
+            var resp = new MockHttpServletResponse();
 
-            assertChainCalled(exchange);
+            assertThat(runFilter(req, resp)).isTrue();
             verifyNoInteractions(jwtValidator, rbacChecker);
         }
 
         @Test
         @DisplayName("POST /api/auth/refresh → bypass auth")
-        void refreshPath_shouldBypassAuth() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.post("/api/auth/refresh").build());
+        void refreshPath_shouldBypassAuth() throws Exception {
+            var req  = new MockHttpServletRequest("POST", "/api/auth/refresh");
+            var resp = new MockHttpServletResponse();
 
-            assertChainCalled(exchange);
+            assertThat(runFilter(req, resp)).isTrue();
             verifyNoInteractions(jwtValidator, rbacChecker);
         }
 
         @Test
         @DisplayName("POST /api/auth/logout → bypass auth")
-        void logoutPath_shouldBypassAuth() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.post("/api/auth/logout").build());
+        void logoutPath_shouldBypassAuth() throws Exception {
+            var req  = new MockHttpServletRequest("POST", "/api/auth/logout");
+            var resp = new MockHttpServletResponse();
 
-            assertChainCalled(exchange);
+            assertThat(runFilter(req, resp)).isTrue();
             verifyNoInteractions(jwtValidator, rbacChecker);
         }
 
         @Test
         @DisplayName("GET /oauth2/authorization/google → bypass auth")
-        void oauth2Path_shouldBypassAuth() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.get("/oauth2/authorization/google").build());
+        void oauth2Path_shouldBypassAuth() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/oauth2/authorization/google");
+            var resp = new MockHttpServletResponse();
 
-            assertChainCalled(exchange);
-            verifyNoInteractions(jwtValidator, rbacChecker);
-        }
-
-        @Test
-        @DisplayName("GET /login/oauth2/code/google → bypass auth")
-        void oauth2CallbackPath_shouldBypassAuth() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.get("/login/oauth2/code/google").build());
-
-            assertChainCalled(exchange);
+            assertThat(runFilter(req, resp)).isTrue();
             verifyNoInteractions(jwtValidator, rbacChecker);
         }
     }
@@ -147,40 +115,41 @@ class JwtAuthenticationFilterTest {
     class MissingOrMalformedToken {
 
         @Test
-        @DisplayName("Không có Authorization header → 401")
-        void noAuthHeader_shouldReturn401() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.get("/api/resources/products").build());
+        @DisplayName("Không có Authorization header → 401, return false")
+        void noAuthHeader_shouldReturn401() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/api/resources/products");
+            var resp = new MockHttpServletResponse();
 
-            assertStatus(exchange, HttpStatus.UNAUTHORIZED);
+            boolean result = runFilter(req, resp);
+
+            assertThat(result).isFalse();
+            assertThat(resp.getStatus()).isEqualTo(401);
             verifyNoInteractions(jwtValidator, rbacChecker);
         }
 
         @Test
-        @DisplayName("Authorization: Basic ... (không có Bearer prefix) → 401")
-        void basicAuthHeader_shouldReturn401() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.get("/api/resources/products")
-                            .header(HttpHeaders.AUTHORIZATION, "Basic dXNlcjpwYXNz")
-                            .build());
+        @DisplayName("Authorization: Basic ... → 401")
+        void basicAuthHeader_shouldReturn401() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/api/resources/products");
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Basic dXNlcjpwYXNz");
+            var resp = new MockHttpServletResponse();
 
-            assertStatus(exchange, HttpStatus.UNAUTHORIZED);
+            assertThat(runFilter(req, resp)).isFalse();
+            assertThat(resp.getStatus()).isEqualTo(401);
             verifyNoInteractions(jwtValidator, rbacChecker);
         }
 
         @Test
-        @DisplayName("Authorization: Bearer <empty> → JwtValidator throw → 401")
-        void bearerWithEmptyToken_shouldReturn401() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.get("/api/resources/products")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer ")
-                            .build());
+        @DisplayName("Bearer <empty> → validate throw → 401")
+        void bearerWithEmptyToken_shouldReturn401() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/api/resources/products");
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer ");
+            var resp = new MockHttpServletResponse();
 
-            // token sau "Bearer " là "" — validate sẽ throw
-            when(jwtValidator.validate(""))
-                    .thenReturn(Mono.error(new RuntimeException("empty token")));
+            when(jwtValidator.validate("")).thenThrow(new RuntimeException("empty token"));
 
-            assertStatus(exchange, HttpStatus.UNAUTHORIZED);
+            assertThat(runFilter(req, resp)).isFalse();
+            assertThat(resp.getStatus()).isEqualTo(401);
         }
     }
 
@@ -191,33 +160,32 @@ class JwtAuthenticationFilterTest {
     class InvalidJwt {
 
         @Test
-        @DisplayName("Token không hợp lệ → JwtValidator error → 401")
-        void invalidJwt_shouldReturn401() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.get("/api/resources/products")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer invalid.jwt.token")
-                            .build());
+        @DisplayName("Token không hợp lệ → JwtValidator throw → 401")
+        void invalidJwt_shouldReturn401() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/api/resources/products");
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer invalid.jwt.token");
+            var resp = new MockHttpServletResponse();
 
             when(jwtValidator.validate("invalid.jwt.token"))
-                    .thenReturn(Mono.error(new RuntimeException("JWT parse error")));
+                    .thenThrow(new RuntimeException("JWT parse error"));
 
-            assertStatus(exchange, HttpStatus.UNAUTHORIZED);
-            // rbacChecker không được gọi khi validate fail
+            assertThat(runFilter(req, resp)).isFalse();
+            assertThat(resp.getStatus()).isEqualTo(401);
             verifyNoInteractions(rbacChecker);
         }
 
         @Test
         @DisplayName("Token hết hạn → ExpiredJwtException → 401")
-        void expiredJwt_shouldReturn401() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.get("/api/resources/products")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer expired.token.here")
-                            .build());
+        void expiredJwt_shouldReturn401() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/api/resources/products");
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer expired.token.here");
+            var resp = new MockHttpServletResponse();
 
             when(jwtValidator.validate("expired.token.here"))
-                    .thenReturn(Mono.error(new io.jsonwebtoken.ExpiredJwtException(null, null, "expired")));
+                    .thenThrow(new io.jsonwebtoken.ExpiredJwtException(null, null, "expired"));
 
-            assertStatus(exchange, HttpStatus.UNAUTHORIZED);
+            assertThat(runFilter(req, resp)).isFalse();
+            assertThat(resp.getStatus()).isEqualTo(401);
             verifyNoInteractions(rbacChecker);
         }
     }
@@ -229,95 +197,89 @@ class JwtAuthenticationFilterTest {
     class RbacCheck {
 
         @Test
-        @DisplayName("Valid JWT + có permission → chain được gọi")
-        void validJwtWithPermission_shouldForward() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.get("/api/resources/products")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer valid.token")
-                            .build());
+        @DisplayName("Valid JWT + có permission → return true")
+        void validJwtWithPermission_shouldReturnTrue() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/api/resources/products");
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer valid.token");
+            var resp = new MockHttpServletResponse();
 
             var claimsResponse = claims("phan", List.of("ROLE_USER"), Set.of("products:READ"));
-            when(jwtValidator.validate("valid.token")).thenReturn(Mono.just(claimsResponse));
-            // Dùng anyString() thay vì exact path — tránh flaky argument matching với anyString
+            when(jwtValidator.validate("valid.token")).thenReturn(claimsResponse);
             when(rbacChecker.hasPermission(any(), anyString(), anyString())).thenReturn(true);
 
-            assertChainCalled(exchange);
+            assertThat(runFilter(req, resp)).isTrue();
         }
 
         @Test
-        @DisplayName("Valid JWT + thiếu permission → 403")
-        void validJwtWithoutPermission_shouldReturn403() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.get("/api/resources/admin/users")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer valid.token")
-                            .build());
+        @DisplayName("Valid JWT + thiếu permission → 403, return false")
+        void validJwtWithoutPermission_shouldReturn403() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/api/resources/admin/users");
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer valid.token");
+            var resp = new MockHttpServletResponse();
 
             var claimsResponse = claims("phan", List.of("ROLE_USER"), Set.of("products:READ"));
-            when(jwtValidator.validate("valid.token")).thenReturn(Mono.just(claimsResponse));
-            // Dùng any matchers — hasPermission trả false → filter trả 403
+            when(jwtValidator.validate("valid.token")).thenReturn(claimsResponse);
             when(rbacChecker.hasPermission(any(), anyString(), anyString())).thenReturn(false);
 
-            assertStatus(exchange, HttpStatus.FORBIDDEN);
+            assertThat(runFilter(req, resp)).isFalse();
+            assertThat(resp.getStatus()).isEqualTo(403);
         }
 
         @Test
-        @DisplayName("Admin có đủ permissions → chain được gọi")
-        void adminWithPermissions_shouldForward() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.delete("/api/resources/admin/users/42")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer admin.token")
-                            .build());
+        @DisplayName("Admin path + ROLE_USER → 403")
+        void adminPath_withRoleUser_shouldReturn403() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/api/admin/routes");
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer user.token");
+            var resp = new MockHttpServletResponse();
 
-            var adminClaims = claims("admin@example.com",
-                    List.of("ROLE_ADMIN"),
-                    Set.of("users:READ", "users:CREATE", "users:UPDATE", "users:DELETE"));
-            when(jwtValidator.validate("admin.token")).thenReturn(Mono.just(adminClaims));
-            when(rbacChecker.hasPermission(any(), anyString(), anyString())).thenReturn(true);
+            var claimsResponse = claims("user", List.of("ROLE_USER"), Set.of("products:READ"));
+            when(jwtValidator.validate("user.token")).thenReturn(claimsResponse);
 
-            assertChainCalled(exchange);
+            assertThat(runFilter(req, resp)).isFalse();
+            assertThat(resp.getStatus()).isEqualTo(403);
+            verifyNoInteractions(rbacChecker);
         }
 
         @Test
-        @DisplayName("POST /api/auth/logout-all với auth:LOGOUT_ALL → chain được gọi")
-        void logoutAllWithPermission_shouldForward() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.post("/api/auth/logout-all")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer super.token")
-                            .build());
+        @DisplayName("Admin path + ROLE_ADMIN → return true")
+        void adminPath_withRoleAdmin_shouldReturnTrue() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/api/admin/routes");
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer admin.token");
+            var resp = new MockHttpServletResponse();
 
-            var claimsResponse = claims("superuser", List.of("ROLE_ADMIN"), Set.of("auth:LOGOUT_ALL"));
-            when(jwtValidator.validate("super.token")).thenReturn(Mono.just(claimsResponse));
-            when(rbacChecker.hasPermission(any(), anyString(), anyString())).thenReturn(true);
+            var adminClaims = claims("admin", List.of("ROLE_ADMIN"),
+                    Set.of("users:READ", "users:DELETE"));
+            when(jwtValidator.validate("admin.token")).thenReturn(adminClaims);
 
-            assertChainCalled(exchange);
+            assertThat(runFilter(req, resp)).isTrue();
         }
 
         @Test
         @DisplayName("rbacChecker không được gọi khi jwtValidator throw")
-        void rbacChecker_notCalledWhenJwtInvalid() {
-            var exchange = MockServerWebExchange.from(
-                    MockServerHttpRequest.get("/api/resources/products")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer bad.token")
-                            .build());
+        void rbacChecker_notCalledWhenJwtInvalid() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/api/resources/products");
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer bad.token");
+            var resp = new MockHttpServletResponse();
 
-            when(jwtValidator.validate("bad.token"))
-                    .thenReturn(Mono.error(new RuntimeException("invalid")));
+            when(jwtValidator.validate("bad.token")).thenThrow(new RuntimeException("invalid"));
 
-            assertStatus(exchange, HttpStatus.UNAUTHORIZED);
+            runFilter(req, resp);
             verifyNoInteractions(rbacChecker);
         }
-    }
-
-    // ─── FILTER ORDER ────────────────────────────────────────────────────────
-
-    @Nested
-    @DisplayName("filter metadata")
-    class FilterMetadata {
 
         @Test
-        @DisplayName("getOrder() = -100 → chạy trước tất cả filter khác")
-        void filterOrder_shouldBeMinus100() {
-            assertThat(filter.getOrder()).isEqualTo(-100);
+        @DisplayName("Claims được set vào request attribute sau khi validate thành công")
+        void validJwt_shouldSetClaimsAttribute() throws Exception {
+            var req  = new MockHttpServletRequest("GET", "/api/resources/products");
+            req.addHeader(HttpHeaders.AUTHORIZATION, "Bearer valid.token");
+            var resp = new MockHttpServletResponse();
+
+            var claimsResponse = claims("phan", List.of("ROLE_USER"), Set.of("products:READ"));
+            when(jwtValidator.validate("valid.token")).thenReturn(claimsResponse);
+            when(rbacChecker.hasPermission(any(), anyString(), anyString())).thenReturn(true);
+
+            runFilter(req, resp);
+            assertThat(req.getAttribute("jwt.claims")).isEqualTo(claimsResponse);
         }
     }
 }

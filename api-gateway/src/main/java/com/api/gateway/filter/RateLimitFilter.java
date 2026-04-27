@@ -1,25 +1,25 @@
 package com.api.gateway.filter;
 
-import com.api.gateway.config.RateLimitProperties;
 import com.api.gateway.admin.ratelimit.RateLimitConfigService;
+import com.api.gateway.config.RateLimitProperties;
 import com.auth.service.dto.ClaimsResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.*;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.gateway.filter.GatewayFilterChain;
-import org.springframework.cloud.gateway.filter.GlobalFilter;
-import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.scripting.support.ResourceScriptSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
-import org.springframework.web.server.ServerWebExchange;
-import reactor.core.publisher.Mono;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -27,25 +27,22 @@ import java.util.Map;
 /**
  * Rate Limiting Filter — Token Bucket per User via Redis Lua script.
  *
- * <p>Order: -99 (chạy sau JwtAuthenticationFilter -100, trước downstream proxy)</p>
- *
- * <p>Claims được đọc từ exchange attribute {@code jwt.claims} do JwtAuthenticationFilter
- * đặt vào — tránh parse JWT lần 2 trên mỗi request.</p>
+ * <p>Order: -99 (chạy sau JwtAuthenticationFilter interceptor, trước Gateway proxy)</p>
+ * <p>Claims đọc từ request attribute "jwt.claims" do JwtAuthenticationFilter đặt vào.</p>
  */
 @Slf4j
 @Component
+@Order(-99)
 @RequiredArgsConstructor
-public class RateLimitFilter implements GlobalFilter, Ordered {
+public class RateLimitFilter implements Filter {
 
-    private final ReactiveStringRedisTemplate redisTemplate;
+    private final StringRedisTemplate         redisTemplate;
     private final RateLimitProperties         fallbackProperties;
     private final RateLimitConfigService      rateLimitConfigService;
     private final ObjectMapper                objectMapper;
 
-    // Dùng chung 1 instance — thread-safe
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
-    /** Lua script: Token Bucket algorithm — atomic check-and-decrement */
     private static final DefaultRedisScript<List<Long>> RATE_LIMIT_SCRIPT;
 
     static {
@@ -57,40 +54,36 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     }
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        String path = exchange.getRequest().getPath().value();
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse,
+                         FilterChain chain) throws IOException, ServletException {
+        HttpServletRequest  request  = (HttpServletRequest) servletRequest;
+        HttpServletResponse response = (HttpServletResponse) servletResponse;
+
+        String path = request.getRequestURI();
 
         if (isExcludedPath(path)) {
-            return chain.filter(exchange);
+            chain.doFilter(request, response);
+            return;
         }
 
-        // Đọc claims từ attribute — JwtAuthenticationFilter đã validate và đặt vào,
-        // không cần parse JWT lại
-        ClaimsResponse claims = exchange.getAttribute("jwt.claims");
+        ClaimsResponse claims = (ClaimsResponse) request.getAttribute("jwt.claims");
         String identity = (claims != null)
                 ? "user:" + claims.username()
-                : "ip:" + extractClientIp(exchange);
+                : "ip:" + extractClientIp(request);
 
         boolean isUser   = identity.startsWith("user:");
         String  username = isUser ? identity.substring(5) : null;
 
-        Mono<int[]> configMono = isUser
+        int[] cfg = isUser
                 ? rateLimitConfigService.resolveConfig(username)
                 : rateLimitConfigService.resolveGlobalDefault();
 
-        return configMono.flatMap(cfg ->
-                checkRateLimit(exchange, chain, identity, cfg[0], cfg[1])
-        );
+        checkRateLimit(request, response, chain, identity, cfg[0], cfg[1]);
     }
 
-    @SuppressWarnings("unchecked")
-    private Mono<Void> checkRateLimit(
-            ServerWebExchange exchange,
-            GatewayFilterChain chain,
-            String identity,
-            int replenishRate,
-            int burstCapacity) {
-
+    private void checkRateLimit(HttpServletRequest request, HttpServletResponse response,
+                                FilterChain chain, String identity,
+                                int replenishRate, int burstCapacity) throws IOException, ServletException {
         String tokensKey    = "rate_limit:" + identity + ".tokens";
         String timestampKey = "rate_limit:" + identity + ".timestamp";
 
@@ -102,57 +95,48 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 "1"
         };
 
-        return redisTemplate.execute(RATE_LIMIT_SCRIPT, keys, args)
-                .next()
-                .cast(List.class)
-                .flatMap(result -> {
-                    List<Long> results       = (List<Long>) result;
-                    boolean    allowed       = !results.isEmpty() && results.get(0) == 1L;
-                    long       tokensLeft    = results.size() > 1 ? results.get(1) : 0L;
+        try {
+            List<Long> results = redisTemplate.execute(RATE_LIMIT_SCRIPT, keys, args);
+            boolean allowed    = results != null && !results.isEmpty() && results.get(0) == 1L;
+            long    tokensLeft = (results != null && results.size() > 1) ? results.get(1) : 0L;
 
-                    exchange.getResponse().getHeaders().add("X-RateLimit-Limit",          String.valueOf(burstCapacity));
-                    exchange.getResponse().getHeaders().add("X-RateLimit-Remaining",      String.valueOf(tokensLeft));
-                    exchange.getResponse().getHeaders().add("X-RateLimit-Replenish-Rate", String.valueOf(replenishRate));
+            response.addHeader("X-RateLimit-Limit",          String.valueOf(burstCapacity));
+            response.addHeader("X-RateLimit-Remaining",      String.valueOf(tokensLeft));
+            response.addHeader("X-RateLimit-Replenish-Rate", String.valueOf(replenishRate));
 
-                    if (allowed) {
-                        return chain.filter(exchange);
-                    }
+            if (allowed) {
+                chain.doFilter(request, response);
+                return;
+            }
 
-                    log.warn("Rate limit exceeded — identity: {}, path: {}",
-                            identity, exchange.getRequest().getPath().value());
-                    return tooManyRequests(exchange, tokensLeft);
-                })
-                .onErrorResume(e -> {
-                    log.error("Redis rate limit error for [{}]: {}", identity, e.getMessage());
-                    if (fallbackProperties.allowOnRedisFailure()) {
-                        log.warn("Redis unavailable — allowing request through (fail-open)");
-                        return chain.filter(exchange);
-                    }
-                    return tooManyRequests(exchange, 0L);
-                });
+            log.warn("Rate limit exceeded — identity: {}, path: {}", identity, request.getRequestURI());
+            writeTooManyRequests(response, request.getRequestURI(), tokensLeft);
+
+        } catch (Exception e) {
+            log.error("Redis rate limit error for [{}]: {}", identity, e.getMessage());
+            if (fallbackProperties.allowOnRedisFailure()) {
+                log.warn("Redis unavailable — allowing request through (fail-open)");
+                chain.doFilter(request, response);
+            } else {
+                writeTooManyRequests(response, request.getRequestURI(), 0L);
+            }
+        }
     }
 
-    private Mono<Void> tooManyRequests(ServerWebExchange exchange, long tokensRemaining) {
-        var response = exchange.getResponse();
-        response.setStatusCode(HttpStatus.TOO_MANY_REQUESTS);
-        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        response.getHeaders().add("Retry-After", "1");
+    private void writeTooManyRequests(HttpServletResponse response, String path, long tokensRemaining)
+            throws IOException {
+        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.addHeader("Retry-After", "1");
 
         Map<String, Object> body = Map.of(
                 "timestamp", Instant.now().toString(),
                 "status",    429,
                 "error",     "Too Many Requests",
                 "message",   "Rate limit exceeded. Please retry after 1 second.",
-                "path",      exchange.getRequest().getPath().value()
+                "path",      path
         );
-
-        try {
-            byte[] bytes  = objectMapper.writeValueAsBytes(body);
-            var    buffer = response.bufferFactory().wrap(bytes);
-            return response.writeWith(Mono.just(buffer));
-        } catch (Exception e) {
-            return Mono.error(e);
-        }
+        response.getWriter().write(objectMapper.writeValueAsString(body));
     }
 
     private boolean isExcludedPath(String path) {
@@ -160,17 +144,11 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                 .anyMatch(pattern -> PATH_MATCHER.match(pattern, path));
     }
 
-    private String extractClientIp(ServerWebExchange exchange) {
-        String xff = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
+    private String extractClientIp(HttpServletRequest request) {
+        String xff = request.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) {
             return xff.split(",")[0].trim();
         }
-        var remote = exchange.getRequest().getRemoteAddress();
-        return remote != null ? remote.getAddress().getHostAddress() : "unknown";
-    }
-
-    @Override
-    public int getOrder() {
-        return -99;
+        return request.getRemoteAddr();
     }
 }

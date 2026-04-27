@@ -1,17 +1,15 @@
 package com.api.gateway.admin.route;
 
 import com.api.gateway.entity.GatewayRouteEntity;
-import com.api.gateway.repository.GatewayRouteR2dbcRepository;
+import com.api.gateway.repository.GatewayRouteRepository;
+import com.api.gateway.route.RouteRefreshEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.gateway.event.RefreshRoutesEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -19,134 +17,136 @@ import java.util.List;
 /**
  * Business logic cho Admin Route Management.
  *
- * <p>Sau mỗi thao tác write, publish {@link RefreshRoutesEvent} để Gateway
- * tự động reload route definitions mà không cần gọi actuator thủ công.</p>
+ * <p>Sau mỗi thao tác write, publish RouteRefreshEvent để DatabaseRouteLocator
+ * tự động reload route definitions.</p>
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AdminRouteService {
 
-    private final GatewayRouteR2dbcRepository routeRepo;
-    private final RoutePermissionRepository   permissionRepo;
-    private final PermissionQueryRepository   permQueryRepo;
-    private final ApplicationEventPublisher   eventPublisher;
+    private final GatewayRouteRepository  routeRepo;
+    private final RoutePermissionRepository permissionRepo;
+    private final PermissionQueryRepository permQueryRepo;
+    private final ApplicationEventPublisher eventPublisher;
 
     // ─── Queries ────────────────────────────────────────────────────────────
 
-    public Flux<AdminDtos.RouteResponse> getAllRoutes() {
-        return routeRepo.findAll()
-                .flatMap(this::toResponse);
+    public List<AdminDtos.RouteResponse> getAllRoutes() {
+        return routeRepo.findAll().iterator()
+                .next() == null ? List.of() :
+                toList(routeRepo.findAll());
     }
 
-    public Mono<AdminDtos.RouteResponse> getRouteById(String id) {
+    public List<AdminDtos.RouteResponse> getAllRoutesList() {
+        List<GatewayRouteEntity> entities = new java.util.ArrayList<>();
+        routeRepo.findAll().forEach(entities::add);
+        return entities.stream().map(this::toResponse).toList();
+    }
+
+    public AdminDtos.RouteResponse getRouteById(String id) {
         return routeRepo.findById(id)
-                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Route not found: " + id)))
-                .flatMap(this::toResponse);
+                .map(this::toResponse)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Route not found: " + id));
     }
 
-    public Flux<AdminDtos.PermissionResponse> getAllPermissions() {
+    public List<AdminDtos.PermissionResponse> getAllPermissions() {
         return permQueryRepo.findAll();
     }
 
-    public Flux<Long> getPermissionIdsByRoute(String routeId) {
+    public List<Long> getPermissionIdsByRoute(String routeId) {
         return permissionRepo.findPermissionIdsByRouteId(routeId);
     }
 
     // ─── Commands ───────────────────────────────────────────────────────────
 
-    public Mono<AdminDtos.RouteResponse> createRoute(AdminDtos.RouteRequest req) {
-        return routeRepo.existsById(req.id())
-                .flatMap(exists -> {
-                    if (exists) {
-                        return Mono.error(new ResponseStatusException(
-                                HttpStatus.CONFLICT, "Route already exists: " + req.id()));
-                    }
-                    GatewayRouteEntity entity = new GatewayRouteEntity(
-                            req.id(), req.uri(),
-                            req.predicates(), req.filters(),
-                            req.routeOrder(), req.enabled(),
-                            OffsetDateTime.now(), OffsetDateTime.now()
-                    );
-                    return routeRepo.save(entity);
-                })
-                .flatMap(this::toResponse)
-                .doOnSuccess(r -> publishRefresh("create", r.id()));
+    public AdminDtos.RouteResponse createRoute(AdminDtos.RouteRequest req) {
+        if (routeRepo.existsById(req.id())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Route already exists: " + req.id());
+        }
+        GatewayRouteEntity entity = new GatewayRouteEntity(
+                req.id(), req.uri(),
+                req.predicates(), req.filters(),
+                req.routeOrder(), req.enabled(),
+                OffsetDateTime.now(), OffsetDateTime.now()
+        );
+        var saved = routeRepo.save(entity);
+        publishRefresh("create", saved.id());
+        return toResponse(saved);
     }
 
-    public Mono<AdminDtos.RouteResponse> updateRoute(String id, AdminDtos.RouteRequest req) {
-        return routeRepo.findById(id)
-                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Route not found: " + id)))
-                .flatMap(existing -> {
-                    GatewayRouteEntity updated = new GatewayRouteEntity(
-                            existing.id(),
-                            req.uri(),
-                            req.predicates(),
-                            req.filters(),
-                            req.routeOrder(),
-                            req.enabled(),
-                            existing.createdAt(),
-                            OffsetDateTime.now()
-                    );
-                    return routeRepo.save(updated);
-                })
-                .flatMap(this::toResponse)
-                .doOnSuccess(r -> publishRefresh("update", r.id()));
-    }
-
-    public Mono<Void> deleteRoute(String id) {
-        return routeRepo.findById(id)
-                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Route not found: " + id)))
-                .flatMap(entity -> permissionRepo.deleteByRouteId(id)
-                        .then(routeRepo.delete(entity)))
-                .doOnSuccess(v -> publishRefresh("delete", id));
-    }
-
-    public Mono<AdminDtos.RouteResponse> toggleRoute(String id, boolean enabled) {
-        return routeRepo.findById(id)
-                .switchIfEmpty(Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Route not found: " + id)))
-                .flatMap(existing -> {
-                    GatewayRouteEntity updated = new GatewayRouteEntity(
-                            existing.id(), existing.uri(),
-                            existing.predicates(), existing.filters(),
-                            existing.routeOrder(), enabled,
-                            existing.createdAt(), OffsetDateTime.now()
-                    );
-                    return routeRepo.save(updated);
-                })
-                .flatMap(this::toResponse)
-                .doOnSuccess(r -> publishRefresh("toggle", r.id()));
+    public AdminDtos.RouteResponse updateRoute(String id, AdminDtos.RouteRequest req) {
+        GatewayRouteEntity existing = routeRepo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Route not found: " + id));
+        GatewayRouteEntity updated = new GatewayRouteEntity(
+                existing.id(),
+                req.uri(), req.predicates(), req.filters(),
+                req.routeOrder(), req.enabled(),
+                existing.createdAt(), OffsetDateTime.now()
+        );
+        var saved = routeRepo.save(updated);
+        publishRefresh("update", saved.id());
+        return toResponse(saved);
     }
 
     @Transactional
-    public Mono<List<Long>> assignPermissions(String routeId, List<Long> permissionIds) {
-        return routeRepo.existsById(routeId)
-                .flatMap(exists -> {
-                    if (!exists) {
-                        return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND, "Route not found: " + routeId));
-                    }
-                    // Xóa cũ → insert mới (replace strategy)
-                    return permissionRepo.deleteByRouteId(routeId)
-                            .thenMany(Flux.fromIterable(permissionIds)
-                                    .flatMap(pid -> permissionRepo.insert(routeId, pid)))
-                            .then(permissionRepo.findPermissionIdsByRouteId(routeId).collectList());
-                });
+    public void deleteRoute(String id) {
+        GatewayRouteEntity entity = routeRepo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Route not found: " + id));
+        permissionRepo.deleteByRouteId(id);
+        routeRepo.delete(entity);
+        publishRefresh("delete", id);
+    }
+
+    public AdminDtos.RouteResponse toggleRoute(String id, boolean enabled) {
+        GatewayRouteEntity existing = routeRepo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Route not found: " + id));
+        GatewayRouteEntity updated = new GatewayRouteEntity(
+                existing.id(), existing.uri(),
+                existing.predicates(), existing.filters(),
+                existing.routeOrder(), enabled,
+                existing.createdAt(), OffsetDateTime.now()
+        );
+        var saved = routeRepo.save(updated);
+        publishRefresh("toggle", saved.id());
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public List<Long> assignPermissions(String routeId, List<Long> permissionIds) {
+        if (!routeRepo.existsById(routeId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND,
+                    "Route not found: " + routeId);
+        }
+        permissionRepo.deleteByRouteId(routeId);
+        permissionIds.forEach(pid -> permissionRepo.insert(routeId, pid));
+        return permissionRepo.findPermissionIdsByRouteId(routeId);
     }
 
     // ─── Helpers ────────────────────────────────────────────────────────────
 
-    private Mono<AdminDtos.RouteResponse> toResponse(GatewayRouteEntity e) {
-        return permissionRepo.findPermissionIdsByRouteId(e.id())
-                .collectList()
-                .map(ids -> new AdminDtos.RouteResponse(
-                        e.id(), e.uri(), e.predicates(), e.filters(),
-                        e.routeOrder(), e.enabled(), ids,
-                        e.createdAt(), e.updatedAt()
-                ));
+    private AdminDtos.RouteResponse toResponse(GatewayRouteEntity e) {
+        List<Long> ids = permissionRepo.findPermissionIdsByRouteId(e.id());
+        return new AdminDtos.RouteResponse(
+                e.id(), e.uri(), e.predicates(), e.filters(),
+                e.routeOrder(), e.enabled(), ids,
+                e.createdAt(), e.updatedAt()
+        );
+    }
+
+    private List<AdminDtos.RouteResponse> toList(Iterable<GatewayRouteEntity> entities) {
+        List<AdminDtos.RouteResponse> result = new java.util.ArrayList<>();
+        entities.forEach(e -> result.add(toResponse(e)));
+        return result;
     }
 
     private void publishRefresh(String action, String routeId) {
-        log.info("Publishing RefreshRoutesEvent after [{}] on route [{}]", action, routeId);
-        eventPublisher.publishEvent(new RefreshRoutesEvent(this));
+        log.info("Publishing RouteRefreshEvent after [{}] on route [{}]", action, routeId);
+        eventPublisher.publishEvent(new RouteRefreshEvent(this));
     }
 }

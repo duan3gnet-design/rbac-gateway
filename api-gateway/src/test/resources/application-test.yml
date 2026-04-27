@@ -2,21 +2,21 @@ spring:
   application:
     name: api-gateway-test
   main:
-    web-application-type: reactive
+    web-application-type: servlet
 
-  # R2DBC connection được auto-configured bởi @ServiceConnection trên PostgreSQLContainer bean
-  # Không cần khai báo spring.r2dbc.url ở đây
+  threads:
+    virtual:
+      enabled: true
 
+  # Datasource được auto-configured bởi @ServiceConnection trên PostgreSQLContainer bean
   cloud:
     gateway:
-      server:
-        webflux:
-          trusted-proxies: ".*"
+      mvc:
+        trusted-proxies: ".*"
 
 jwt:
   secret: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=
 
-# Rate limit thấp để integration test chạy nhanh
 rate-limit:
   replenish-rate: 5
   burst-capacity: 5

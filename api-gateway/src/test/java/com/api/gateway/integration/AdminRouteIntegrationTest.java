@@ -1,35 +1,28 @@
 package com.api.gateway.integration;
 
-import com.api.gateway.repository.GatewayRouteR2dbcRepository;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.*;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 
 import javax.crypto.SecretKey;
-import java.time.Duration;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Integration tests cho Admin Route Management API.
  */
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DisplayName("Admin Route Management Integration Tests")
-@Slf4j
 class AdminRouteIntegrationTest extends AbstractIntegrationTest {
-    @Autowired
-    private GatewayRouteR2dbcRepository routeRepo;
+
     private static final String SECRET = "bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=";
 
     private static final String SAMPLE_ROUTE_BODY = """
@@ -67,7 +60,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
     }
 
     /** Helper: tạo route mới qua API, trả về routeId */
-    private String createTestRoute(String routeId) {
+    private void createTestRoute(String routeId) {
         webClient.post().uri("/api/admin/routes")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -82,46 +75,31 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                         }
                         """.formatted(routeId, routeId))
                 .exchange()
-                .expectStatus().isEqualTo(HttpStatus.CREATED)
-                .expectBody()
-                .consumeWith(result -> System.out.println("Response: " + result));
-        log.info(routeId);
-        await().pollDelay(50, TimeUnit.MILLISECONDS).atMost(Duration.ofMillis(500))
-                        .untilAsserted(() -> assertThat(routeRepo.findById(routeId).hasElement().block()).isEqualTo(true));
-
-        return routeId;
+                .expectStatus().isEqualTo(HttpStatus.CREATED);
     }
 
-    /**
-     * Helper: GET permissions, lấy id của phần tử đầu tiên.
-     * Dùng cast rõ ràng sang Map<String,Object> để tránh raw-type compile error.
-     */
-    @SuppressWarnings("unchecked")
-    private Long firstPermissionId() {
-        Map<String, Object> first = (Map<String, Object>)
-                webClient.get().uri("/api/admin/permissions")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
-                        .exchange()
-                        .expectStatus().isOk()
-                        .returnResult(Map.class)
-                        .getResponseBody()
-                        .blockFirst();
-        return ((Number) first.get("id")).longValue();
+    /** Helper: GET /api/admin/permissions, trả về id của phần tử đầu tiên */
+    private long firstPermissionId() {
+        AtomicLong id = new AtomicLong();
+        webClient.get().uri("/api/admin/permissions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(new ParameterizedTypeReference<List<Map<String, Object>>>() {})
+                .value(list -> id.set(((Number) list.get(0).get("id")).longValue()));
+        return id.get();
     }
 
-    /** Helper: GET permissions list (lấy N phần tử đầu), cast sang List<Map<String,Object>> */
-    @SuppressWarnings("unchecked")
+    /** Helper: GET /api/admin/permissions, trả về N phần tử đầu */
     private List<Map<String, Object>> firstNPermissions(int n) {
-        return (List<Map<String, Object>>) (List<?>)
-                webClient.get().uri("/api/admin/permissions")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
-                        .exchange()
-                        .expectStatus().isOk()
-                        .returnResult(Map.class)
-                        .getResponseBody()
-                        .take(n)
-                        .collectList()
-                        .block();
+        AtomicReference<List<Map<String, Object>>> holder = new AtomicReference<>();
+        webClient.get().uri("/api/admin/permissions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(new ParameterizedTypeReference<List<Map<String, Object>>>() {})
+                .value(list -> holder.set(list.subList(0, Math.min(n, list.size()))));
+        return holder.get();
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -135,8 +113,8 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
         @Test @Order(1)
         @DisplayName("GET /api/admin/routes không có token → 401")
         void getRoutes_noToken_shouldReturn401() {
-            webClient.get().uri("/api/admin/routes").exchange()
-                    .expectStatus().isUnauthorized();
+            webClient.get().uri("/api/admin/routes")
+                    .exchange().expectStatus().isUnauthorized();
         }
 
         @Test @Order(2)
@@ -190,7 +168,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                     .expectBody()
                     .jsonPath("$").isArray()
                     .jsonPath("$.length()").value(len ->
-                            Assertions.assertTrue((Integer) len >= 6));
+                            assertTrue((Integer) len >= 6));
         }
 
         @Test @Order(11)
@@ -253,7 +231,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                     .jsonPath("$.id").isEqualTo("resource-service")
                     .jsonPath("$.permissionIds").isArray()
                     .jsonPath("$.permissionIds.length()").value(len ->
-                            Assertions.assertTrue((Integer) len > 0));
+                            assertTrue((Integer) len > 0));
         }
     }
 
@@ -364,20 +342,17 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
 
         @Test @Order(42)
         @DisplayName("PUT — updatedAt thay đổi sau khi update")
-        @SuppressWarnings("unchecked")
         void updateRoute_updatedAtShouldChange() {
             createTestRoute("ts-check");
 
-            Map<String, Object> before = (Map<String, Object>)
-                    webClient.get().uri("/api/admin/routes/ts-check")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
-                            .exchange()
-                            .expectStatus().isOk()
-                            .returnResult(Map.class)
-                            .getResponseBody()
-                            .blockFirst();
+            AtomicReference<String> updatedAtBefore = new AtomicReference<>();
+            webClient.get().uri("/api/admin/routes/ts-check")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
+                    .exchange()
+                    .expectStatus().isOk()
+                    .expectBody(new ParameterizedTypeReference<Map<String, Object>>() {})
+                    .value(map -> updatedAtBefore.set((String) map.get("updatedAt")));
 
-            String updatedAtBefore = (String) before.get("updatedAt");
             try { Thread.sleep(10); } catch (InterruptedException ignored) {}
 
             webClient.put().uri("/api/admin/routes/ts-check")
@@ -391,7 +366,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                     .expectStatus().isOk()
                     .expectBody()
                     .jsonPath("$.updatedAt").value(after ->
-                            Assertions.assertNotEquals(updatedAtBefore, after.toString()));
+                            assertNotEquals(updatedAtBefore.get(), after.toString()));
         }
     }
 
@@ -430,7 +405,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
         void deleteRoute_withPermissions_cascadeDeletePermissions() {
             createTestRoute("route-with-perms");
 
-            Long permId = firstPermissionId();
+            long permId = firstPermissionId();
 
             webClient.put().uri("/api/admin/routes/route-with-perms/permissions")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
@@ -530,7 +505,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
         void assignPermissions_shouldReturn200WithIds() {
             createTestRoute("perm-assign-route");
 
-            Long permId = firstPermissionId();
+            long permId = firstPermissionId();
 
             webClient.put().uri("/api/admin/routes/perm-assign-route/permissions")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
@@ -541,7 +516,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                     .expectBody()
                     .jsonPath("$").isArray()
                     .jsonPath("$.length()").isEqualTo(1)
-                    .jsonPath("$[0]").isEqualTo(permId.intValue());
+                    .jsonPath("$[0]").isEqualTo((int) permId);
         }
 
         @Test @Order(72)
@@ -550,10 +525,10 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
             createTestRoute("perm-replace-route");
 
             List<Map<String, Object>> perms = firstNPermissions(2);
-            Assertions.assertTrue(perms.size() >= 2, "Test cần ít nhất 2 permissions");
+            assertTrue(perms.size() >= 2, "Test cần ít nhất 2 permissions");
 
-            Long permId1 = ((Number) perms.get(0).get("id")).longValue();
-            Long permId2 = ((Number) perms.get(1).get("id")).longValue();
+            long permId1 = ((Number) perms.get(0).get("id")).longValue();
+            long permId2 = ((Number) perms.get(1).get("id")).longValue();
 
             webClient.put().uri("/api/admin/routes/perm-replace-route/permissions")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
@@ -569,7 +544,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                     .expectStatus().isOk()
                     .expectBody()
                     .jsonPath("$.length()").isEqualTo(1)
-                    .jsonPath("$[0]").isEqualTo(permId2.intValue());
+                    .jsonPath("$[0]").isEqualTo((int) permId2);
         }
 
         @Test @Order(73)
@@ -577,7 +552,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
         void assignPermissions_emptyList_shouldClearAll() {
             createTestRoute("perm-clear-route");
 
-            Long permId = firstPermissionId();
+            long permId = firstPermissionId();
 
             webClient.put().uri("/api/admin/routes/perm-clear-route/permissions")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
@@ -624,7 +599,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                     .expectBody()
                     .jsonPath("$").isArray()
                     .jsonPath("$.length()").value(len ->
-                            Assertions.assertTrue((Integer) len > 0));
+                            assertTrue((Integer) len > 0));
         }
 
         @Test @Order(81)
@@ -651,25 +626,21 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                     .expectStatus().isOk()
                     .expectBody()
                     .jsonPath("$[0].code").value(code ->
-                            Assertions.assertTrue(code.toString().contains(":")));
+                            assertTrue(code.toString().contains(":")));
         }
 
         @Test @Order(83)
         @DisplayName("GET /api/admin/permissions — có cả ROLE_ADMIN và ROLE_USER permissions")
-        @SuppressWarnings("unchecked")
         void getAllPermissions_shouldContainBothRoles() {
-            List<Map<String, Object>> perms = (List<Map<String, Object>>) (List<?>)
-                    webClient.get().uri("/api/admin/permissions")
-                            .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
-                            .exchange()
-                            .expectStatus().isOk()
-                            .returnResult(Map.class)
-                            .getResponseBody()
-                            .collectList()
-                            .block();
-
-            Assertions.assertTrue(perms.stream().anyMatch(p -> "ROLE_ADMIN".equals(p.get("role"))));
-            Assertions.assertTrue(perms.stream().anyMatch(p -> "ROLE_USER".equals(p.get("role"))));
+            webClient.get().uri("/api/admin/permissions")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
+                    .exchange()
+                    .expectStatus().isOk()
+                    .expectBody(new ParameterizedTypeReference<List<Map<String, Object>>>() {})
+                    .value(perms -> {
+                        assertTrue(perms.stream().anyMatch(p -> "ROLE_ADMIN".equals(p.get("role"))));
+                        assertTrue(perms.stream().anyMatch(p -> "ROLE_USER".equals(p.get("role"))));
+                    });
         }
 
         @Test @Order(84)

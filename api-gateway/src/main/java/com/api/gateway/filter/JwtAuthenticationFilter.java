@@ -2,29 +2,32 @@ package com.api.gateway.filter;
 
 import com.api.gateway.validator.JwtValidator;
 import com.api.gateway.validator.RbacPermissionChecker;
+import com.auth.service.dto.ClaimsResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
-import org.springframework.cloud.gateway.filter.GatewayFilterChain;
-import org.springframework.cloud.gateway.filter.GlobalFilter;
-import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
-import org.springframework.web.server.ServerWebExchange;
-import reactor.core.publisher.Mono;
+import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.util.List;
 
+/**
+ * JWT Authentication Interceptor cho Gateway MVC.
+ *
+ * <p>Chạy trước mọi request (order = Ordered.HIGHEST_PRECEDENCE trong WebMvcConfig).
+ * Claims được lưu vào request attribute "jwt.claims" để RateLimitFilter tái dụng.</p>
+ */
 @Component
 @RequiredArgsConstructor
-public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
+public class JwtAuthenticationFilter implements HandlerInterceptor {
 
     private final JwtValidator jwtValidator;
     private final RbacPermissionChecker rbacChecker;
 
-    // Dùng chung 1 instance AntPathMatcher — thread-safe, tránh allocate mỗi request
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     private static final List<String> PUBLIC_PATHS = List.of(
@@ -36,46 +39,51 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private static final List<String> ADMIN_PATHS = List.of("/api/admin/**");
 
     @Override
-    public Mono<Void> filter(ServerWebExchange exchange, @NonNull GatewayFilterChain chain) {
-        String path = exchange.getRequest().getPath().value();
-        String method = exchange.getRequest().getMethod().name();
+    public boolean preHandle(HttpServletRequest request,
+                             @NonNull HttpServletResponse response,
+                             @NonNull Object handler) {
+        String path   = request.getRequestURI();
+        String method = request.getMethod();
 
         if (isPublicPath(path)) {
-            return chain.filter(exchange);
+            return true;
         }
 
-        String authHeader = exchange.getRequest()
-                .getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
-
+        String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return unauthorized(exchange);
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            return false;
         }
 
         String token = authHeader.substring(7);
 
-        return jwtValidator.validate(token)
-                .flatMap(claims -> {
-                    if (isAdminPath(path) && !claims.roles().contains("ROLE_ADMIN")) {
-                        return forbidden(exchange);
-                    }
+        try {
+            ClaimsResponse claims = jwtValidator.validate(token);
 
-                    if (!isAdminPath(path) && !rbacChecker.hasPermission(claims.permissions(), method, path)) {
-                        return forbidden(exchange);
-                    }
+            if (isAdminPath(path) && !claims.roles().contains("ROLE_ADMIN")) {
+                response.setStatus(HttpStatus.FORBIDDEN.value());
+                return false;
+            }
 
-                    ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                            .header("X-User-Name", claims.username())
-                            .header("X-User-Roles", String.join(",", claims.roles()))
-                            .header("X-User-Permissions", String.join(",", claims.permissions()))
-                            // Đính kèm token đã validated vào attribute để RateLimitFilter tái dụng,
-                            // tránh parse JWT lần thứ 2
-                            .build();
+            if (!isAdminPath(path) && !rbacChecker.hasPermission(claims.permissions(), method, path)) {
+                response.setStatus(HttpStatus.FORBIDDEN.value());
+                return false;
+            }
 
-                    exchange.getAttributes().put("jwt.claims", claims);
+            // Inject headers cho downstream service
+            request.setAttribute("X-User-Name", claims.username());
+            request.setAttribute("X-User-Roles", String.join(",", claims.roles()));
+            request.setAttribute("X-User-Permissions", String.join(",", claims.permissions()));
 
-                    return chain.filter(exchange.mutate().request(mutatedRequest).build());
-                })
-                .onErrorResume(e -> unauthorized(exchange));
+            // Lưu claims vào attribute để RateLimitFilter tái dụng (tránh parse JWT lần 2)
+            request.setAttribute("jwt.claims", claims);
+
+            return true;
+
+        } catch (Exception e) {
+            response.setStatus(HttpStatus.UNAUTHORIZED.value());
+            return false;
+        }
     }
 
     private boolean isPublicPath(String path) {
@@ -84,20 +92,5 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
 
     private boolean isAdminPath(String path) {
         return ADMIN_PATHS.stream().anyMatch(p -> PATH_MATCHER.match(p, path));
-    }
-
-    private Mono<Void> unauthorized(ServerWebExchange exchange) {
-        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-        return exchange.getResponse().setComplete();
-    }
-
-    private Mono<Void> forbidden(ServerWebExchange exchange) {
-        exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
-        return exchange.getResponse().setComplete();
-    }
-
-    @Override
-    public int getOrder() {
-        return -100;
     }
 }

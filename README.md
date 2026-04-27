@@ -664,12 +664,12 @@ k6 run --out json=k6/results.json k6/script.js
 #### Trực tiếp vs qua Gateway
 
 | Metric | Direct `:8081` | Via Gateway `:8080` | Overhead |
-|---|----------------|---------------------|----------|
-| Throughput | **3867 req/s** | **2981 req/s**     | ~23%     |
+|---|----------------|--------------------|----------|
+| Throughput | **2717 req/s** | **2254 req/s**     | ~18%     |
 | p50 latency | 3 ms          | 5 ms              | +2 ms    |
-| p95 latency | 17 ms         | 15 ms             | -2 ms    |
-| p99 latency | 66 ms         | 32 ms             | -34 ms   |
-| Error rate | 0%             | 0%                  | —        |
+| p95 latency | 17 ms         | 20 ms             | +3 ms    |
+| p99 latency | 66 ms         | 49 ms             | -17 ms   |
+| Error rate | 0%             | 0%                 | —        |
 
 > Gateway overhead ~2–3 ms/request: JWT validation + Redis rate limit (Lua) + route cache lookup + header mutation + Circuit Breaker state check.
 

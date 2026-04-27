@@ -7,12 +7,7 @@ import org.springframework.data.relational.core.mapping.Table;
 import java.time.OffsetDateTime;
 
 /**
- * R2DBC entity ánh xạ bảng rate_limit_config.
- *
- * <ul>
- *   <li>{@code username == null} → global default row</li>
- *   <li>{@code username != null} → per-user override</li>
- * </ul>
+ * Spring Data JDBC entity ánh xạ bảng rate_limit_config.
  */
 @Table("rate_limit_config")
 public record RateLimitConfigEntity(

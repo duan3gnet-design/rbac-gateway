@@ -145,8 +145,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1.0"
-          memory: 512M
+          cpus: "4.0"
+          memory: 1024M
     networks:
       - rbac-network
 
@@ -184,8 +184,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "1.0"
-          memory: 512M
+          cpus: "4.0"
+          memory: 1024M
     networks:
       - rbac-network
 
@@ -226,6 +226,19 @@ services:
         limits:
           cpus: "4.0"
           memory: 3072M
+    networks:
+      - rbac-network
+
+  # ==================== whoami performance test ====================
+  who-am-i:
+    container_name: who-am-i
+    image: traefik/whoami
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+      - "traefik.http.routers.whoami.entrypoints=web"
+    ports:
+      - "81:80"
     networks:
       - rbac-network
 

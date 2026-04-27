@@ -19,17 +19,13 @@ import java.nio.file.Path;
  * Testcontainers config:
  * 1. Start WireMock sớm để lấy port
  * 2. Generate init SQL với URI đúng WireMock port
- * 3. Start PostgreSQL container với init SQL đó
- *
- * Nhờ vậy Gateway load routes lần đầu đã có URI đúng — không cần refresh.
+ * 3. Start PostgreSQL container với init SQL đó (JDBC, không phải R2DBC)
  */
 @TestConfiguration(proxyBeanMethods = false)
 public class PostgreSQLContainerConfig {
 
-    /** WireMock static — start 1 lần, dùng chung toàn bộ test suite */
     public static final WireMockServer WIRE_MOCK;
 
-    /** Redis container static — start 1 lần, dùng chung toàn bộ test suite */
     @SuppressWarnings("rawtypes")
     public static final GenericContainer REDIS_CONTAINER;
 
@@ -41,7 +37,6 @@ public class PostgreSQLContainerConfig {
                 .withExposedPorts(6379);
         REDIS_CONTAINER.start();
 
-        // Expose Redis host/port qua system properties để Spring Boot pickup
         System.setProperty("REDIS_HOST", REDIS_CONTAINER.getHost());
         System.setProperty("REDIS_PORT", String.valueOf(REDIS_CONTAINER.getMappedPort(6379)));
     }
@@ -51,7 +46,6 @@ public class PostgreSQLContainerConfig {
     public PostgreSQLContainer<?> postgresContainer() throws IOException {
         String wireMockUri = "http://localhost:" + WIRE_MOCK.port();
 
-        // Generate init SQL với URI thật
         String initSql = buildInitSql(wireMockUri);
         Path tmpSql = Files.createTempFile("gateway-test-init-", ".sql");
         Files.writeString(tmpSql, initSql, StandardCharsets.UTF_8);
@@ -116,25 +110,18 @@ public class PostgreSQLContainerConfig {
                     PRIMARY KEY (route_id, permission_id)
                 );
 
-                -- ── Rate Limit seed ────────────────────────────────────────────────────
-                -- Global default: replenishRate=5, burstCapacity=5 (khớp với application-test.yml)
                 INSERT INTO rate_limit_config (username, replenish_rate, burst_capacity, description)
-                VALUES (NULL, 5, 5, 'Test global default')
-                ON CONFLICT DO NOTHING;
+                VALUES (NULL, 5, 5, 'Test global default') ON CONFLICT DO NOTHING;
 
-                -- ── RBAC seed ──────────────────────────────────────────────────────────
                 INSERT INTO resources (name) VALUES ('products'), ('orders'), ('users'), ('profile')
                 ON CONFLICT DO NOTHING;
 
                 INSERT INTO actions (name) VALUES ('READ'), ('CREATE'), ('UPDATE'), ('DELETE')
                 ON CONFLICT DO NOTHING;
 
-                -- ROLE_ADMIN có tất cả permissions
                 INSERT INTO permissions (role, resource_id, action_id)
-                SELECT 'ROLE_ADMIN', r.id, a.id FROM resources r, actions a
-                ON CONFLICT DO NOTHING;
+                SELECT 'ROLE_ADMIN', r.id, a.id FROM resources r, actions a ON CONFLICT DO NOTHING;
 
-                -- ROLE_USER có permissions giới hạn
                 INSERT INTO permissions (role, resource_id, action_id)
                 VALUES
                     ('ROLE_USER', (SELECT id FROM resources WHERE name='products'), (SELECT id FROM actions WHERE name='READ')),
@@ -144,7 +131,6 @@ public class PostgreSQLContainerConfig {
                     ('ROLE_USER', (SELECT id FROM resources WHERE name='profile'),  (SELECT id FROM actions WHERE name='UPDATE'))
                 ON CONFLICT DO NOTHING;
 
-                -- ── Gateway Routes seed ────────────────────────────────────────────────
                 INSERT INTO gateway_routes (id, uri, predicates, filters, route_order) VALUES
 
                 ('auth-login', '%1$s',
@@ -179,12 +165,9 @@ public class PostgreSQLContainerConfig {
 
                 ON CONFLICT DO NOTHING;
 
-                -- resource-service route yêu cầu ROLE_USER permissions
                 INSERT INTO route_permissions (route_id, permission_id)
                 SELECT 'resource-service', p.id
-                FROM permissions p
-                WHERE p.role = 'ROLE_USER'
-                ON CONFLICT DO NOTHING;
+                FROM permissions p WHERE p.role = 'ROLE_USER' ON CONFLICT DO NOTHING;
                 """.formatted(wireMockUri);
     }
 }

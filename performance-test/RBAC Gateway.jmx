@@ -7,13 +7,68 @@
       </elementProp>
     </TestPlan>
     <hashTree>
+      <Arguments guiclass="ArgumentsPanel" testclass="Arguments" testname="Variables">
+        <collectionProp name="Arguments.arguments">
+          <elementProp name="token" elementType="Argument">
+            <stringProp name="Argument.name">token</stringProp>
+            <stringProp name="Argument.value">eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsInJvbGVzIjpbIlJPTEVfQURNSU4iXSwicGVybWlzc2lvbnMiOlsib3JkZXJzOlJFQUQiLCJwcm9maWxlOkRFTEVURSIsInByb2ZpbGU6VVBEQVRFIiwib3JkZXJzOlVQREFURSIsInByb2R1Y3RzOlJFQUQiLCJ1c2VyczpDUkVBVEUiLCJ1c2VyczpSRUFEIiwib3JkZXJzOkNSRUFURSIsInByb2R1Y3RzOkRFTEVURSIsInByb2ZpbGU6Q1JFQVRFIiwidXNlcnM6REVMRVRFIiwicHJvZHVjdHM6VVBEQVRFIiwidXNlcnM6VVBEQVRFIiwicHJvZHVjdHM6Q1JFQVRFIiwib3JkZXJzOkRFTEVURSIsInByb2ZpbGU6UkVBRCJdLCJpYXQiOjE3NzcyNTY3ODgsImV4cCI6MTc3NzM0MzE4OH0.1LRRqoIIlHXya1h35bhsuffhe6iIdqxWdhyK3raiWy8</stringProp>
+            <stringProp name="Argument.metadata">=</stringProp>
+          </elementProp>
+        </collectionProp>
+      </Arguments>
+      <hashTree/>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Login" enabled="false">
+        <intProp name="ThreadGroup.num_threads">1</intProp>
+        <intProp name="ThreadGroup.ramp_time">1</intProp>
+        <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
+          <stringProp name="LoopController.loops">1</stringProp>
+          <boolProp name="LoopController.continue_forever">false</boolProp>
+        </elementProp>
+      </ThreadGroup>
+      <hashTree>
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="/api/auth/login">
+          <stringProp name="HTTPSampler.domain">localhost</stringProp>
+          <stringProp name="HTTPSampler.port">8080</stringProp>
+          <stringProp name="HTTPSampler.protocol">http</stringProp>
+          <stringProp name="HTTPSampler.path">/api/auth/login</stringProp>
+          <boolProp name="HTTPSampler.follow_redirects">true</boolProp>
+          <stringProp name="HTTPSampler.method">POST</stringProp>
+          <boolProp name="HTTPSampler.use_keepalive">true</boolProp>
+          <boolProp name="HTTPSampler.postBodyRaw">true</boolProp>
+          <elementProp name="HTTPsampler.Arguments" elementType="Arguments">
+            <collectionProp name="Arguments.arguments">
+              <elementProp name="" elementType="HTTPArgument">
+                <boolProp name="HTTPArgument.always_encode">false</boolProp>
+                <stringProp name="Argument.value">{&#xd;
+  &quot;username&quot;: &quot;admin&quot;,&#xd;
+  &quot;password&quot;: &quot;admin123&quot;&#xd;
+}</stringProp>
+                <stringProp name="Argument.metadata">=</stringProp>
+              </elementProp>
+            </collectionProp>
+          </elementProp>
+        </HTTPSamplerProxy>
+        <hashTree>
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
+            <collectionProp name="HeaderManager.headers">
+              <elementProp name="" elementType="Header">
+                <stringProp name="Header.name">Content-Type</stringProp>
+                <stringProp name="Header.value">application/json</stringProp>
+              </elementProp>
+            </collectionProp>
+          </HeaderManager>
+          <hashTree/>
+        </hashTree>
+      </hashTree>
       <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="Via Gateway" enabled="false">
         <intProp name="ThreadGroup.num_threads">2000</intProp>
         <intProp name="ThreadGroup.ramp_time">1</intProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">10</stringProp>
           <boolProp name="LoopController.continue_forever">false</boolProp>
         </elementProp>
       </ThreadGroup>
@@ -32,11 +87,11 @@
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsInJvbGVzIjpbIlJPTEVfQURNSU4iXSwicGVybWlzc2lvbnMiOlsib3JkZXJzOlJFQUQiLCJwcm9maWxlOkRFTEVURSIsInByb2ZpbGU6VVBEQVRFIiwib3JkZXJzOlVQREFURSIsInByb2R1Y3RzOlJFQUQiLCJ1c2VyczpDUkVBVEUiLCJ1c2VyczpSRUFEIiwib3JkZXJzOkNSRUFURSIsInByb2R1Y3RzOkRFTEVURSIsInByb2ZpbGU6Q1JFQVRFIiwidXNlcnM6REVMRVRFIiwicHJvZHVjdHM6VVBEQVRFIiwidXNlcnM6VVBEQVRFIiwicHJvZHVjdHM6Q1JFQVRFIiwib3JkZXJzOkRFTEVURSIsInByb2ZpbGU6UkVBRCJdLCJpYXQiOjE3NzcwODgwNDUsImV4cCI6MTc3NzE3NDQ0NX0._J93_y_L5CLucCro77IDuAWIlnHOspRV-CHjZ_Tffeo</stringProp>
+                <stringProp name="Header.value">Bearer ${token}</stringProp>
               </elementProp>
             </collectionProp>
           </HeaderManager>
@@ -56,11 +111,11 @@
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsInJvbGVzIjpbIlJPTEVfQURNSU4iXSwicGVybWlzc2lvbnMiOlsib3JkZXJzOlJFQUQiLCJwcm9maWxlOkRFTEVURSIsInByb2ZpbGU6VVBEQVRFIiwib3JkZXJzOlVQREFURSIsInByb2R1Y3RzOlJFQUQiLCJ1c2VyczpDUkVBVEUiLCJ1c2VyczpSRUFEIiwib3JkZXJzOkNSRUFURSIsInByb2R1Y3RzOkRFTEVURSIsInByb2ZpbGU6Q1JFQVRFIiwidXNlcnM6REVMRVRFIiwicHJvZHVjdHM6VVBEQVRFIiwidXNlcnM6VVBEQVRFIiwicHJvZHVjdHM6Q1JFQVRFIiwib3JkZXJzOkRFTEVURSIsInByb2ZpbGU6UkVBRCJdLCJpYXQiOjE3NzcwODgwNDUsImV4cCI6MTc3NzE3NDQ0NX0._J93_y_L5CLucCro77IDuAWIlnHOspRV-CHjZ_Tffeo</stringProp>
+                <stringProp name="Header.value">Bearer ${token}</stringProp>
               </elementProp>
             </collectionProp>
           </HeaderManager>
@@ -103,7 +158,7 @@
           <stringProp name="filename"></stringProp>
         </ResultCollector>
         <hashTree/>
-        <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree" enabled="true">
+        <ResultCollector guiclass="ViewResultsFullVisualizer" testclass="ResultCollector" testname="View Results Tree">
           <boolProp name="ResultCollector.error_logging">true</boolProp>
           <objProp>
             <name>saveConfig</name>
@@ -147,12 +202,12 @@
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
         <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
         <elementProp name="ThreadGroup.main_controller" elementType="LoopController" guiclass="LoopControlPanel" testclass="LoopController" testname="Loop Controller">
-          <stringProp name="LoopController.loops">1</stringProp>
+          <stringProp name="LoopController.loops">10</stringProp>
           <boolProp name="LoopController.continue_forever">false</boolProp>
         </elementProp>
       </ThreadGroup>
       <hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="/api/auth/validate direct">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="/api/auth/validate">
           <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">8081</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
@@ -166,17 +221,17 @@
           </elementProp>
         </HTTPSamplerProxy>
         <hashTree>
-          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager" enabled="true">
+          <HeaderManager guiclass="HeaderPanel" testclass="HeaderManager" testname="HTTP Header Manager">
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsInJvbGVzIjpbIlJPTEVfQURNSU4iXSwicGVybWlzc2lvbnMiOlsib3JkZXJzOlJFQUQiLCJwcm9maWxlOkRFTEVURSIsInByb2ZpbGU6VVBEQVRFIiwib3JkZXJzOlVQREFURSIsInByb2R1Y3RzOlJFQUQiLCJ1c2VyczpDUkVBVEUiLCJ1c2VyczpSRUFEIiwib3JkZXJzOkNSRUFURSIsInByb2R1Y3RzOkRFTEVURSIsInByb2ZpbGU6Q1JFQVRFIiwidXNlcnM6REVMRVRFIiwicHJvZHVjdHM6VVBEQVRFIiwidXNlcnM6VVBEQVRFIiwicHJvZHVjdHM6Q1JFQVRFIiwib3JkZXJzOkRFTEVURSIsInByb2ZpbGU6UkVBRCJdLCJpYXQiOjE3NzcwODgwNDUsImV4cCI6MTc3NzE3NDQ0NX0._J93_y_L5CLucCro77IDuAWIlnHOspRV-CHjZ_Tffeo</stringProp>
+                <stringProp name="Header.value">Bearer ${token}</stringProp>
               </elementProp>
             </collectionProp>
           </HeaderManager>
           <hashTree/>
         </hashTree>
-        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="/api/resources/products direct" enabled="false">
+        <HTTPSamplerProxy guiclass="HttpTestSampleGui" testclass="HTTPSamplerProxy" testname="/api/resources/products" enabled="false">
           <stringProp name="HTTPSampler.domain">localhost</stringProp>
           <stringProp name="HTTPSampler.port">8082</stringProp>
           <stringProp name="HTTPSampler.protocol">http</stringProp>
@@ -194,7 +249,7 @@
             <collectionProp name="HeaderManager.headers">
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">Authorization</stringProp>
-                <stringProp name="Header.value">Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJhZG1pbiIsInJvbGVzIjpbIlJPTEVfQURNSU4iXSwicGVybWlzc2lvbnMiOlsib3JkZXJzOlJFQUQiLCJwcm9maWxlOkRFTEVURSIsInByb2ZpbGU6VVBEQVRFIiwib3JkZXJzOlVQREFURSIsInByb2R1Y3RzOlJFQUQiLCJ1c2VyczpDUkVBVEUiLCJ1c2VyczpSRUFEIiwib3JkZXJzOkNSRUFURSIsInByb2R1Y3RzOkRFTEVURSIsInByb2ZpbGU6Q1JFQVRFIiwidXNlcnM6REVMRVRFIiwicHJvZHVjdHM6VVBEQVRFIiwidXNlcnM6VVBEQVRFIiwicHJvZHVjdHM6Q1JFQVRFIiwib3JkZXJzOkRFTEVURSIsInByb2ZpbGU6UkVBRCJdLCJpYXQiOjE3NzcwODgwNDUsImV4cCI6MTc3NzE3NDQ0NX0._J93_y_L5CLucCro77IDuAWIlnHOspRV-CHjZ_Tffeo</stringProp>
+                <stringProp name="Header.value">Bearer ${token}</stringProp>
               </elementProp>
               <elementProp name="" elementType="Header">
                 <stringProp name="Header.name">X-User-Name</stringProp>

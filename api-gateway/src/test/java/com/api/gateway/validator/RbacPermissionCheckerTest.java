@@ -130,6 +130,30 @@ class RbacPermissionCheckerTest {
         }
 
         @Test
+        @DisplayName("GET /api/resources/profile/whoami với profile:READ → granted")
+        void getWhoami_withReadPermission_shouldAllow() {
+            assertThat(checker.hasPermission(Set.of("profile:READ"), "GET", "/api/resources/profile/whoami")).isTrue();
+        }
+
+        @Test
+        @DisplayName("GET /api/resources/profile/whoami thiếu profile:READ → denied")
+        void getWhoami_withoutPermission_shouldDeny() {
+            assertThat(checker.hasPermission(Set.of("products:READ", "orders:READ"), "GET", "/api/resources/profile/whoami")).isFalse();
+        }
+
+        @Test
+        @DisplayName("GET /api/resources/profile/whoami với empty set → denied")
+        void getWhoami_emptyPermissions_shouldDeny() {
+            assertThat(checker.hasPermission(Set.of(), "GET", "/api/resources/profile/whoami")).isFalse();
+        }
+
+        @Test
+        @DisplayName("POST /api/resources/profile/whoami → denied (không có rule POST profile)")
+        void postWhoami_noRuleDefined_shouldDeny() {
+            assertThat(checker.hasPermission(Set.of("profile:READ"), "POST", "/api/resources/profile/whoami")).isFalse();
+        }
+
+        @Test
         @DisplayName("PUT /api/resources/profile/me với profile:UPDATE → granted")
         void updateProfile_withUpdatePermission_shouldAllow() {
             assertThat(checker.hasPermission(Set.of("profile:UPDATE"), "PUT", "/api/resources/profile/me")).isTrue();
@@ -190,13 +214,26 @@ class RbacPermissionCheckerTest {
         @DisplayName("Super-admin có tất cả permissions → tất cả routes đều granted")
         void superAdmin_allPermissions_shouldAllowEverything() {
             Set<String> superAdminPerms = Set.of(
-                    "products:READ", "orders:READ", "orders:CREATE", "orders:UPDATE", "orders:DELETE",
+                    "products:READ",
+                    "orders:READ", "orders:CREATE", "orders:UPDATE", "orders:DELETE",
                     "users:READ", "users:CREATE", "users:UPDATE", "users:DELETE",
-                    "profile:READ", "profile:UPDATE", "auth:LOGOUT_ALL"
+                    "profile:READ", "profile:UPDATE",
+                    "auth:LOGOUT_ALL"
             );
             assertThat(checker.hasPermission(superAdminPerms, "DELETE", "/api/resources/admin/users/99")).isTrue();
             assertThat(checker.hasPermission(superAdminPerms, "POST",   "/api/auth/logout-all")).isTrue();
             assertThat(checker.hasPermission(superAdminPerms, "GET",    "/api/resources/products")).isTrue();
+            assertThat(checker.hasPermission(superAdminPerms, "GET",    "/api/resources/profile/whoami")).isTrue();
+        }
+
+        @Test
+        @DisplayName("whoami path được cover bởi profile:READ wildcard (không cần permission riêng)")
+        void whoamiPath_coveredByProfileReadWildcard() {
+            // Đây là test tài liệu hoá rằng /profile/whoami và /profile/me
+            // dùng chung rule profile:READ, không có permission riêng "profile:WHOAMI"
+            assertThat(checker.hasPermission(Set.of("profile:READ"), "GET", "/api/resources/profile/whoami")).isTrue();
+            assertThat(checker.hasPermission(Set.of("profile:READ"), "GET", "/api/resources/profile/me")).isTrue();
+            assertThat(checker.hasPermission(Set.of("profile:READ"), "GET", "/api/resources/profile/settings")).isTrue();
         }
     }
 }

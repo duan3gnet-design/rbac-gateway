@@ -7,8 +7,8 @@ import org.springframework.data.relational.core.mapping.Table;
 import java.time.OffsetDateTime;
 
 /**
- * R2DBC entity ánh xạ bảng gateway_routes.
- * predicates / filters lưu dạng JSON text, parse trong DatabaseRouteDefinitionRepository.
+ * Spring Data JDBC entity ánh xạ bảng gateway_routes.
+ * predicates / filters lưu dạng JSON text, parse trong DatabaseRouteLocator.
  */
 @Table("gateway_routes")
 public record GatewayRouteEntity(

@@ -1,46 +1,42 @@
 package com.api.gateway.admin.route;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
+
+import java.util.List;
 
 /**
- * Custom R2DBC repository cho bảng route_permissions (composite PK).
- * Spring Data R2DBC không hỗ trợ composite key qua interface nên dùng DatabaseClient.
+ * Custom JDBC repository cho bảng route_permissions (composite PK).
  */
 @Repository
 @RequiredArgsConstructor
 public class RoutePermissionRepository {
 
-    private final DatabaseClient db;
+    private final JdbcTemplate jdbcTemplate;
 
-    public Flux<Long> findPermissionIdsByRouteId(String routeId) {
-        return db.sql("SELECT permission_id FROM route_permissions WHERE route_id = :routeId")
-                .bind("routeId", routeId)
-                .map(row -> row.get("permission_id", Long.class))
-                .all();
+    public List<Long> findPermissionIdsByRouteId(String routeId) {
+        return jdbcTemplate.query(
+                "SELECT permission_id FROM route_permissions WHERE route_id = ?",
+                (rs, rowNum) -> rs.getLong("permission_id"),
+                routeId
+        );
     }
 
-    public Mono<Void> deleteByRouteId(String routeId) {
-        return db.sql("DELETE FROM route_permissions WHERE route_id = :routeId")
-                .bind("routeId", routeId)
-                .fetch()
-                .rowsUpdated()
-                .then();
+    public void deleteByRouteId(String routeId) {
+        jdbcTemplate.update(
+                "DELETE FROM route_permissions WHERE route_id = ?",
+                routeId
+        );
     }
 
-    public Mono<Void> insert(String routeId, Long permissionId) {
-        return db.sql("""
+    public void insert(String routeId, Long permissionId) {
+        jdbcTemplate.update("""
                 INSERT INTO route_permissions (route_id, permission_id)
-                VALUES (:routeId, :permissionId)
+                VALUES (?, ?)
                 ON CONFLICT DO NOTHING
-                """)
-                .bind("routeId", routeId)
-                .bind("permissionId", permissionId)
-                .fetch()
-                .rowsUpdated()
-                .then();
+                """,
+                routeId, permissionId
+        );
     }
 }

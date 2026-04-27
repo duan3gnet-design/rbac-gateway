@@ -7,6 +7,9 @@
           <option value="X-User-Name" />
           <option value="X-User-Roles" />
           <option value="X-Username" />
+          <option value="X-RateLimit-Limit" />
+          <option value="X-RateLimit-Remaining" />
+          <option value="X-RateLimit-Replenish-Rate" />
         </set>
       </option>
     </inspection_tool>

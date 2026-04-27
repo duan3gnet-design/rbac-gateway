@@ -28,3 +28,12 @@ app:
     url: ${AUTH_SERVICE_URL:http://localhost:8081}
   internal:
     secret: ${INTERNAL_SECRET:changeme-internal-secret}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, gateway, circuitbreakers, circuitbreakerevents, retryevents
+  endpoint:
+    health:
+      show-details: always

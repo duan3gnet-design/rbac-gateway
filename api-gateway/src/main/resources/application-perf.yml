@@ -2,15 +2,15 @@
 # Profile override cho performance test trong Docker
 
 spring:
-  r2dbc:
-    url: r2dbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:postgres}
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:postgres}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:12345}
-    pool:
-      initial-size: 10
-      max-size: 50
-      max-idle-time: 30m
-      max-acquire-time: 3s
+    hikari:
+      minimum-idle: 10
+      maximum-pool-size: 50
+      idle-timeout: 1800000
+      connection-timeout: 3000
 
   data:
     redis:
@@ -21,17 +21,11 @@ spring:
       timeout: 3s
       lettuce:
         pool:
-          enabled: true      # BẮT BUỘC phải khai báo tường minh, cùng với commons-pool2 trong pom
-          min-idle: 8        # pre-warm connections, tránh cold start khi burst
+          enabled: true
+          min-idle: 8
           max-idle: 16
-          max-active: 32     # = số Netty event loop threads * 2 (default 2*CPU)
-          max-wait: 1s       # timeout chờ lấy connection từ pool thay vì block vô hạn
-
-  reactor:
-    netty:
-      http:
-        server:
-          access-log: false
+          max-active: 32
+          max-wait: 1s
 
 logging:
   level:
@@ -40,4 +34,3 @@ logging:
     io.github.resilience4j: WARN
     com.api.gateway: WARN
     io.lettuce: WARN
-    io.r2dbc: WARN
