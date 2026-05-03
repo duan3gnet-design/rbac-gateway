@@ -10,7 +10,7 @@ spring:
   # ==================== VIRTUAL THREAD ====================
   threads:
     virtual:
-      enabled: true   # Bật Virtual Thread cho toàn bộ Tomcat worker threads
+      enabled: true
 
   # ==================== DATASOURCE (HikariCP) ====================
   datasource:
@@ -20,7 +20,7 @@ spring:
     hikari:
       minimum-idle: 10
       maximum-pool-size: 50
-      idle-timeout: 1800000   # 30 phút
+      idle-timeout: 1800000
       connection-timeout: 3000
 
   # ==================== REDIS ====================
@@ -37,33 +37,44 @@ spring:
           max-idle: 16
           max-active: 32
 
-  # ==================== GATEWAY MVC ====================
   cloud:
+    # ==================== GATEWAY MVC ====================
     gateway:
       mvc:
-        # Routes load động từ PostgreSQL qua DatabaseRouteLocator
         trusted-proxies: ".*"
 
+    # ==================== LOAD BALANCER ====================
+    loadbalancer:
+      # Dùng cache Caffeine để không gọi Eureka mỗi request
+      cache:
+        enabled: true
+        # TTL của cache instances — sync với registry-fetch-interval-seconds
+        ttl: 10s
+        # Capacity ban đầu của cache (số service khác nhau)
+        capacity: 256
+      # Chiến lược: ROUND_ROBIN (default) hoặc RANDOM
+      # RoundRobin phù hợp nhất cho Gateway routing đồng đều tải
+      configurations: default
+      # Health-check: chỉ route đến instance đang UP
+      health-check:
+        initial-delay: 0
+        interval: 10s
+        # Bật refetch khi tất cả instances của 1 service đều unreachable
+        refetch-instances-interval: 25s
+
 # ==================== EUREKA CLIENT ====================
-# api-gateway vừa là Eureka client (đăng ký) vừa dùng
-# LoadBalancer để resolve service-name → instance URL khi routing.
 eureka:
   client:
     service-url:
-      defaultZone: ${EUREKA_URL}
-    # Fetch registry để LoadBalancer có danh sách instances
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
     fetch-registry: true
     register-with-eureka: true
-    # Refresh cache interval (default 30s) — giảm để detect instance mới nhanh hơn
-    registry-fetch-interval-seconds: 15
+    # Giảm từ 30s → 10s để detect instance mới / dead nhanh hơn
+    registry-fetch-interval-seconds: 10
   instance:
-    # Dùng IP thay hostname để dễ resolve trong Docker network
     prefer-ip-address: true
-    # Heartbeat mỗi 10s (default 30s) — phát hiện instance chết nhanh hơn
     lease-renewal-interval-in-seconds: 10
-    # Eureka xóa instance sau 30s không nhận heartbeat (default 90s)
     lease-expiration-duration-in-seconds: 30
-    # Health check URL — Eureka dùng để verify instance thực sự healthy
     health-check-url-path: /actuator/health
 
 # ==================== JWT ====================
@@ -129,6 +140,7 @@ logging:
   level:
     root: INFO
     org.springframework.cloud.gateway: DEBUG
+    org.springframework.cloud.loadbalancer: DEBUG
     io.github.resilience4j: DEBUG
     com.api.gateway.route: DEBUG
     com.netflix.discovery: WARN

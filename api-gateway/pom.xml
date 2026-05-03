@@ -25,7 +25,6 @@
         <!-- ─── MAIN ─────────────────────────────────────────────────────── -->
         <!--
             Gateway MVC (WebMVC + Virtual Thread thay thế WebFlux Reactive).
-            Dùng spring-cloud-starter-gateway-server-webmvc thay vì gateway-server-webflux.
         -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
@@ -34,7 +33,6 @@
         </dependency>
         <!--
             Circuit Breaker blocking (không phải Reactor-Resilience4j).
-            Tương thích với Gateway MVC filter pipeline.
         -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
@@ -42,14 +40,31 @@
         </dependency>
         <!--
             Eureka Client — đăng ký api-gateway vào Service Registry và
-            fetch danh sách instances để LoadBalancer resolve service-name → URL.
-            spring-cloud-starter-netflix-eureka-client kéo theo:
-              - spring-cloud-netflix-eureka-client
-              - spring-cloud-loadbalancer (RoundRobin, Random, ...)
+            fetch danh sách instances để LoadBalancer có dữ liệu routing.
         -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+        <!--
+            Spring Cloud LoadBalancer — khai báo tường minh để rõ dependency.
+            Cung cấp LoadBalancerClient (blocking) với các algorithm:
+              RoundRobinLoadBalancer (default), RandomLoadBalancer.
+            Tích hợp Caffeine cache để không gọi Eureka mỗi request.
+            Đã được kéo theo bởi eureka-client, khai báo lại để pin version
+            và tránh bị exclude nhầm.
+        -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+        <!--
+            Caffeine — backing cache cho LoadBalancer ServiceInstanceListSupplier.
+            Không có Caffeine, LoadBalancer fallback về ConcurrentHashMap không có TTL.
+        -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -57,7 +72,6 @@
         </dependency>
         <!--
             Redis blocking (Lettuce) — dùng cho Rate Limit Lua script.
-            Virtual Thread xử lý blocking I/O tốt, không cần reactive template.
         -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -72,7 +86,6 @@
         </dependency>
         <!--
             JDBC thay R2DBC — Virtual Thread không cần non-blocking driver.
-            spring-boot-starter-data-jdbc bao gồm HikariCP connection pool.
         -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
