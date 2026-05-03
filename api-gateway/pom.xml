@@ -40,6 +40,17 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
         </dependency>
+        <!--
+            Eureka Client — đăng ký api-gateway vào Service Registry và
+            fetch danh sách instances để LoadBalancer resolve service-name → URL.
+            spring-cloud-starter-netflix-eureka-client kéo theo:
+              - spring-cloud-netflix-eureka-client
+              - spring-cloud-loadbalancer (RoundRobin, Random, ...)
+        -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>

@@ -2,6 +2,9 @@ server:
   port: 8081
 
 spring:
+  application:
+    name: auth-service
+
   datasource:
     url: jdbc:postgresql://localhost:5432/postgres
     username: postgres
@@ -40,6 +43,20 @@ spring:
             user-info-uri: https://www.googleapis.com/oauth2/v3/userinfo
             user-name-attribute: email
 
+# ==================== EUREKA CLIENT ====================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL}
+    fetch-registry: true
+    register-with-eureka: true
+    registry-fetch-interval-seconds: 15
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+    health-check-url-path: /actuator/health
+
 jwt:
   secret: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=
   expiration: 86400000
@@ -62,3 +79,5 @@ management:
 logging:
   level:
     root: INFO
+    com.netflix.discovery: WARN
+    com.netflix.eureka: WARN

@@ -16,6 +16,7 @@ COPY auth-service/pom.xml      ./auth-service/
 COPY api-gateway/pom.xml       ./api-gateway/
 COPY resource-service/pom.xml  ./resource-service/
 COPY migration/pom.xml         ./migration/
+COPY eureka-server/pom.xml     ./eureka-server/
 
 RUN mvn dependency:go-offline -pl resource-service -am -q
 

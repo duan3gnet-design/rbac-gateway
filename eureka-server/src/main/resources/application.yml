@@ -1,0 +1,40 @@
+server:
+  port: 8761
+
+spring:
+  application:
+    name: eureka-server
+
+eureka:
+  instance:
+    hostname: ${EUREKA_HOSTNAME:localhost}
+    prefer-ip-address: false
+  client:
+    # Eureka server không tự đăng ký với chính nó (standalone mode)
+    register-with-eureka: false
+    fetch-registry: false
+    service-url:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+  server:
+    # Tắt eviction protection trong môi trường dev/test.
+    # Production: bật lại (enable-self-preservation: true)
+    enable-self-preservation: ${EUREKA_SELF_PRESERVATION:false}
+    # Giảm thời gian chờ evict instance đã chết (mặc định 60s, dev dùng 15s)
+    eviction-interval-timer-in-ms: ${EUREKA_EVICTION_INTERVAL:15000}
+    # Renewal threshold: bao nhiêu % heartbeat cần đến để không trigger preservation
+    renewal-percent-threshold: 0.85
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    root: INFO
+    com.netflix.eureka: WARN
+    com.netflix.discovery: WARN

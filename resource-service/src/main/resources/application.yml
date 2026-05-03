@@ -23,6 +23,20 @@ spring:
   flyway:
     enabled: false   # Migration chạy từ module riêng
 
+# ==================== EUREKA CLIENT ====================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL}
+    fetch-registry: true
+    register-with-eureka: true
+    registry-fetch-interval-seconds: 15
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+    health-check-url-path: /actuator/health
+
 app:
   auth-service:
     url: ${AUTH_SERVICE_URL:http://localhost:8081}
@@ -37,3 +51,9 @@ management:
   endpoint:
     health:
       show-details: always
+
+logging:
+  level:
+    root: INFO
+    com.netflix.discovery: WARN
+    com.netflix.eureka: WARN

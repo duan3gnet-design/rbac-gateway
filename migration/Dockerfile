@@ -2,10 +2,6 @@
 # Dockerfile — migration (Flyway standalone)
 # Build từ ROOT của multi-module project (context = rbac-gateway/)
 # docker build -f migration/Dockerfile -t migration .
-#
-# NOTE: migration/pom.xml không có spring-boot-maven-plugin nên
-# Maven chỉ tạo plain JAR — không dùng được layertools.
-# Migration chạy 1 lần rồi exit nên không cần layered image.
 # =============================================================
 
 # -------------------------------------------------------------
@@ -20,6 +16,7 @@ COPY auth-service/pom.xml      ./auth-service/
 COPY api-gateway/pom.xml       ./api-gateway/
 COPY resource-service/pom.xml  ./resource-service/
 COPY migration/pom.xml         ./migration/
+COPY eureka-server/pom.xml     ./eureka-server/
 
 RUN mvn dependency:go-offline -pl migration -am -q
 
