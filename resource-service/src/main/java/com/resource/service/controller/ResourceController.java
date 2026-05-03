@@ -1,11 +1,7 @@
 package com.resource.service.controller;
 
 import com.resource.service.client.AuthServiceClient;
-import com.resource.service.dto.OrderResponse;
-import com.resource.service.dto.PlaceOrderRequest;
-import com.resource.service.dto.ProductResponse;
-import com.resource.service.dto.UserProfileResponse;
-import com.resource.service.dto.UserSummary;
+import com.resource.service.dto.*;
 import com.resource.service.service.OrderService;
 import com.resource.service.service.ProductService;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +11,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -31,8 +26,7 @@ public class ResourceController {
 
     @GetMapping("/products")
     public ResponseEntity<List<ProductResponse>> getProducts() {
-        return ResponseEntity.ok(new ArrayList<>());
-//        return ResponseEntity.ok(productService.findAll());
+        return ResponseEntity.ok(productService.findAll());
     }
 
     @GetMapping("/products/{id}")

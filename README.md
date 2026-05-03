@@ -493,37 +493,37 @@ Copy `.env.example` to `.env` before running.
 
 ### Database
 
-| Variable | Description | Default |
-|---|---|---|
-| `DB_URL` | R2DBC PostgreSQL URL | `r2dbc:postgresql://localhost:5432/postgres` |
-| `DB_USERNAME` | Database username | `postgres` |
-| `DB_PASSWORD` | Database password | — |
+| Variable      | Description          | Default                                      |
+|---------------|----------------------|----------------------------------------------|
+| `DB_URL`      | R2DBC PostgreSQL URL | `r2dbc:postgresql://localhost:5432/postgres` |
+| `DB_USERNAME` | Database username    | `postgres`                                   |
+| `DB_PASSWORD` | Database password    | —                                            |
 
 ### Redis
 
-| Variable | Description | Default |
-|---|---|---|
-| `REDIS_HOST` | Redis hostname | `localhost` |
-| `REDIS_PORT` | Redis port | `6379` |
-| `REDIS_PASSWORD` | Redis password (if any) | — |
+| Variable         | Description             | Default     |
+|------------------|-------------------------|-------------|
+| `REDIS_HOST`     | Redis hostname          | `localhost` |
+| `REDIS_PORT`     | Redis port              | `6379`      |
+| `REDIS_PASSWORD` | Redis password (if any) | —           |
 
 ### JWT
 
-| Variable | Description | Example |
-|---|---|---|
+| Variable     | Description                               | Example                                     |
+|--------------|-------------------------------------------|---------------------------------------------|
 | `JWT_SECRET` | HMAC signing secret (Base64, min 256-bit) | *(generate with `openssl rand -base64 32`)* |
 
 ### Google OAuth2
 
-| Variable | Description | Where to get |
-|---|---|---|
-| `GOOGLE_CLIENT_ID` | OAuth2 client ID | [Google Cloud Console](https://console.cloud.google.com/) |
-| `GOOGLE_CLIENT_SECRET` | OAuth2 client secret | Google Cloud Console |
+| Variable               | Description          | Where to get                                              |
+|------------------------|----------------------|-----------------------------------------------------------|
+| `GOOGLE_CLIENT_ID`     | OAuth2 client ID     | [Google Cloud Console](https://console.cloud.google.com/) |
+| `GOOGLE_CLIENT_SECRET` | OAuth2 client secret | Google Cloud Console                                      |
 
 ### Internal
 
-| Variable | Description |
-|---|---|
+| Variable          | Description                                |
+|-------------------|--------------------------------------------|
 | `INTERNAL_SECRET` | Shared secret for service-to-service calls |
 
 ---
@@ -532,11 +532,11 @@ Copy `.env.example` to `.env` before running.
 
 Integration tests live in `api-gateway/src/test/` and use **Testcontainers** — no manual infra setup needed.
 
-| Test class | Coverage |
-|---|---|
-| `GatewayIntegrationTest` | Route forwarding, JWT validation, 401/403 flows |
-| `CircuitBreakerIntegrationTest` | Open/half-open/closed states, fallback responses |
-| `RateLimitIntegrationTest` | Token bucket behavior, per-user isolation, refill, excluded paths, 429 format |
+| Test class                      | Coverage                                                                      |
+|---------------------------------|-------------------------------------------------------------------------------|
+| `GatewayIntegrationTest`        | Route forwarding, JWT validation, 401/403 flows                               |
+| `CircuitBreakerIntegrationTest` | Open/half-open/closed states, fallback responses                              |
+| `RateLimitIntegrationTest`      | Token bucket behavior, per-user isolation, refill, excluded paths, 429 format |
 
 ```bash
 cd api-gateway
@@ -567,22 +567,22 @@ Testcontainers pulls `postgres:16-alpine` and `redis:7-alpine` automatically on 
 
 #### Trực tiếp vs qua Gateway tải cao (500 VUs, 200K Requests)
 
-| Metric      | Direct `:8081` | Via Gateway `:8080` | Overhead |
-|-------------|----------------|---------------------|----------|
-| Throughput  | **2717 req/s** | **2254 req/s**      | ~18%     |
-| p50 latency | 3 ms           | 5 ms                | +2 ms    |
-| p95 latency | 17 ms          | 20 ms               | +3 ms    |
-| p99 latency | 66 ms          | 49 ms               | -17 ms   |
-| Error rate  | 0%             | 0%                  | —        |
+| Metric      | Direct `:8081, :8082` | Via Gateway `:8080` | Overhead |
+|-------------|-----------------------|---------------------|----------|
+| Throughput  | **3082 req/s**        | **3080 req/s**      | ~0.001%  |
+| p50 latency | 59 ms                 | 154 ms              | +95 ms   |
+| p95 latency | 562 ms                | 251 ms              | -311 ms  |
+| p99 latency | 874 ms                | 309 ms              | -565 ms  |
+| Error rate  | 0%                    | 0%                  | —        |
 
 #### Trực tiếp vs qua Gateway tải thấp (500 VUs, 1000 Requests)
 
 | Metric      | Direct `:8081, :8082` | Via Gateway `:8080` | Overhead |
 |-------------|-----------------------|---------------------|----------|
 | Throughput  | **938 req/s**         | **931 req/s**       | ~0.1%    |
-| p50 latency | 4 ms                  | 5 ms                | +1 ms    |
-| p95 latency | 16 ms                 | 9 ms                | -7 ms    |
-| p99 latency | 38 ms                 | 11 ms               | -27 ms   |
+| p50 latency | 4 ms                  | 6 ms                | +2 ms    |
+| p95 latency | 16 ms                 | 17 ms               | +1 ms    |
+| p99 latency | 38 ms                 | 39 ms               | +1 ms    |
 | Error rate  | 0%                    | 0%                  | —        |
 
 > Gateway overhead ~1–2 ms/request: JWT validation + Redis rate limit (Lua) + route cache lookup + header mutation + Circuit Breaker state check.
