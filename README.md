@@ -1,15 +1,24 @@
 # 🔐 RBAC Gateway
 
-A production-ready **microservices backend** with Role-Based Access Control, JWT authentication, dynamic rate limiting, and an API Gateway built on Spring Boot 4 + Spring Cloud.
+A production-ready **microservices backend** with Role-Based Access Control, JWT authentication, dynamic rate limiting, service discovery, and an API Gateway built on Spring Boot 4 + Spring Cloud.
 
 ---
 
 ## 📐 Architecture Overview
 
 ```
-                    ┌──────────────────────────────────────────┐
+                         ┌─────────────────────────┐
+                         │      Eureka Server       │
+                         │       (Port 8761)        │
+                         │   Service Registry &     │
+                         │      Discovery UI        │
+                         └────────────┬────────────┘
+                              ▲       │ fetch registry
+                    register  │       │ (every 10s)
+                    heartbeat │       ▼
+                    ┌─────────┴────────────────────────────────┐
                     │              API Gateway                  │
-                    │          (Webmvc · Port 8080)           │
+                    │          (WebMVC · Port 8080)             │
                     │                                          │
                     │  ┌─────────────┐  ┌──────────────────┐  │
                     │  │ JWT Filter  │  │  Rate Limit      │  │
@@ -21,12 +30,19 @@ A production-ready **microservices backend** with Role-Based Access Control, JWT
                     │  │   Routes    │  │  (Resilience4j)  │  │
                     │  │  (DB-backed)│  └──────────────────┘  │
                     │  └─────────────┘                        │
+                    │                                          │
+                    │  ┌──────────────────────────────────┐   │
+                    │  │  Spring Cloud LoadBalancer        │   │
+                    │  │  RoundRobin + Caffeine cache      │   │
+                    │  │  lb://auth-service → IP:port      │   │
+                    │  └──────────────────────────────────┘   │
                     └──────────────┬───────────┬──────────────┘
-                                   │           │
+                                   │           │  lb:// resolved
+                                   │           │  to live instance
                      ┌─────────────┘           └─────────────┐
                      ▼                                        ▼
           ┌──────────────────┐                  ┌──────────────────────┐
-          │   Auth Service   │                  │   Resource Service   │
+          │   Auth Service   │◄────register─────►   Resource Service   │
           │   (Port 8081)    │                  │   (Port 8082)        │
           │                  │                  │                      │
           │  · Login/Logout  │                  │  · Protected APIs    │
@@ -55,7 +71,8 @@ A production-ready **microservices backend** with Role-Based Access Control, JWT
 
 | Module             | Port   | Description                                                                              |
 |--------------------|--------|------------------------------------------------------------------------------------------|
-| `api-gateway`      | `8080` | Spring Cloud Gateway (WebFlux) — routing, JWT validation, rate limiting, Circuit Breaker |
+| `eureka-server`    | `8761` | Spring Cloud Netflix Eureka — Service Registry & Discovery dashboard                    |
+| `api-gateway`      | `8080` | Spring Cloud Gateway (WebMVC) — routing, JWT validation, rate limiting, load balancing, Circuit Breaker |
 | `auth-service`     | `8081` | Authentication — login, refresh token, token revocation, Google OAuth2                   |
 | `resource-service` | `8082` | Protected resources — RBAC enforcement, permission-based access control                  |
 | `migration`        | —      | Standalone Flyway module — schema versioning & seeding                                   |
@@ -65,21 +82,23 @@ A production-ready **microservices backend** with Role-Based Access Control, JWT
 
 ## 🛠️ Tech Stack
 
-| Category      | Technology                                      |
-|---------------|-------------------------------------------------|
-| Framework     | Spring Boot `4.0.5`                             |
-| Cloud         | Spring Cloud `Oakwood`                          |
-| Gateway       | Spring Cloud Gateway (Webmvc / Virtual threads) |
-| Security      | Spring Security, JJWT                           |
-| OAuth2        | Google OAuth2 (Redirect flow + SDK flow)        |
-| Resilience    | Resilience4j (Circuit Breaker)                  |
-| Rate Limiting | Redis Token Bucket (Lua script, atomic)         |
-| Database      | PostgreSQL + Spring Data R2DBC                  |
-| Migration     | Flyway (separate module)                        |
-| Cache         | Redis (`spring-boot-starter-data-redis`)        |
-| Java          | Java 21                                         |
-| Frontend      | React 19 + Vite + MUI v7                        |
-| Code Quality  | SonarQube `2025.1` + JaCoCo                     |
+| Category        | Technology                                                        |
+|-----------------|-------------------------------------------------------------------|
+| Framework       | Spring Boot `4.0.5`                                              |
+| Cloud           | Spring Cloud `Oakwood` (`2025.1.1`)                              |
+| Gateway         | Spring Cloud Gateway (WebMVC / Virtual Threads)                  |
+| Service Discovery | Spring Cloud Netflix Eureka Server + Client                    |
+| Load Balancing  | Spring Cloud LoadBalancer (RoundRobin + Caffeine cache)          |
+| Security        | Spring Security, JJWT                                            |
+| OAuth2          | Google OAuth2 (Redirect flow + SDK flow)                         |
+| Resilience      | Resilience4j (Circuit Breaker + Time Limiter)                    |
+| Rate Limiting   | Redis Token Bucket (Lua script, atomic)                          |
+| Database        | PostgreSQL + Spring Data JDBC                                     |
+| Migration       | Flyway (separate module)                                         |
+| Cache           | Redis (`spring-boot-starter-data-redis`) + Caffeine (LB cache)  |
+| Java            | Java 21 + Virtual Threads                                        |
+| Frontend        | React 19 + Vite + MUI v7                                         |
+| Code Quality    | SonarQube `2025.1` + JaCoCo                                      |
 
 ---
 
@@ -108,6 +127,15 @@ A production-ready **microservices backend** with Role-Based Access Control, JWT
 - [x] **Rate limit headers** — `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Replenish-Rate`
 - [x] **429 JSON response** — structured error body with `timestamp`, `status`, `message`, `path`
 - [x] **Excluded paths** — public endpoints (login, register, OAuth2) bypass rate limiting
+
+### Service Discovery & Load Balancing
+- [x] **Eureka Server** — standalone Service Registry, dashboard at `http://localhost:8761`
+- [x] **Eureka Client** — all three services auto-register on startup, heartbeat every 10s
+- [x] **Spring Cloud LoadBalancer** — `lb://service-name` in route URI, resolved at request time
+- [x] **RoundRobin algorithm** — even traffic distribution across instances of the same service
+- [x] **Caffeine-backed instance cache** — TTL 10s, prevents hitting Eureka on every request
+- [x] **Health-aware routing** — only routes to instances with `/actuator/health` = UP
+- [x] **Graceful no-instance handling** — throws `IllegalStateException` (caught by Circuit Breaker) instead of silently routing to wrong host
 
 ### Infrastructure
 - [x] Spring Cloud Gateway — dynamic routes loaded from PostgreSQL (`gateway_routes` table)
@@ -142,6 +170,130 @@ Permissions follow the `resource:action` convention and are embedded directly in
 ```
 
 The `resource-service` validates these permissions using Spring Security method-level annotations or a custom `PermissionEvaluator`.
+
+---
+
+## 🔍 Service Discovery — Eureka
+
+### How It Works
+
+All services register themselves with the Eureka Server on startup and send a heartbeat every 10 seconds. The Gateway fetches the full registry every 10 seconds and caches it locally via Caffeine (TTL 10s), so instance resolution at request time is a fast in-memory lookup.
+
+```
+Startup flow:
+  auth-service     ──register──►
+  resource-service ──register──►  Eureka Server (:8761)
+  api-gateway      ──register──►
+
+Request flow (lb:// URI):
+  Request → DatabaseRouteLocator
+              → LoadBalancerClient.choose("auth-service")
+                  → CachingServiceInstanceListSupplier (Caffeine TTL=10s)
+                      → EurekaDiscoveryClient (fetch every 10s)
+              → ServiceInstance → http://10.0.0.5:8081
+              → http() proxy handler
+```
+
+### Dashboard
+
+The Eureka dashboard is available at **`http://localhost:8761`** and shows:
+
+- All registered instances with their status (`UP` / `DOWN` / `OUT_OF_SERVICE`)
+- Instance metadata: IP, port, health-check URL
+- Lease info: last renewal timestamp, lease duration
+
+### Route URI Format
+
+Routes stored in the `gateway_routes` table support two URI formats:
+
+| Format | Example | Behavior |
+|---|---|---|
+| Direct URL | `http://localhost:8081` | Gateway calls the fixed host:port directly |
+| Service name | `lb://auth-service` | Gateway resolves via Eureka + LoadBalancer at request time |
+
+To switch an existing route to use service discovery:
+
+```sql
+UPDATE gateway_routes
+SET uri = 'lb://auth-service'
+WHERE route_id = 'auth-route';
+```
+
+### Self-Preservation Mode
+
+Self-preservation is **disabled** in development (configurable via `EUREKA_SELF_PRESERVATION` env var). In production, set it to `true` to prevent Eureka from evicting instances during network partitions.
+
+```yaml
+# eureka-server/application.yml
+eureka:
+  server:
+    enable-self-preservation: ${EUREKA_SELF_PRESERVATION:false}
+    eviction-interval-timer-in-ms: ${EUREKA_EVICTION_INTERVAL:15000}
+```
+
+---
+
+## ⚖️ Load Balancing
+
+### Architecture
+
+Spring Cloud LoadBalancer sits between the Gateway routing layer and the Eureka registry. It uses the **blocking** `LoadBalancerClient` API (compatible with Gateway WebMVC / Virtual Threads — no reactive stack needed).
+
+```
+LoadBalancerClient.choose("auth-service")
+  │
+  └─► RoundRobinLoadBalancer
+        │
+        └─► CachingServiceInstanceListSupplier  (Caffeine, TTL=10s)
+              │
+              └─► DiscoveryClientServiceInstanceListSupplier
+                    │
+                    └─► EurekaDiscoveryClient  (fetches registry every 10s)
+```
+
+### Algorithm
+
+**RoundRobin** (default for all services) — requests are distributed sequentially across all available instances. This is the best choice for services with homogeneous request cost (auth token validation, RBAC checks).
+
+To switch a specific service to **Random** load balancing, create a dedicated config class:
+
+```java
+@Configuration
+@LoadBalancerClient(name = "resource-service", configuration = RandomLBConfig.class)
+public class RandomLBConfig {
+    @Bean
+    public ReactorLoadBalancer<ServiceInstance> randomLoadBalancer(
+            Environment env, LoadBalancerClientFactory factory) {
+        String name = env.getProperty(LoadBalancerClientFactory.PROPERTY_NAME);
+        return new RandomLoadBalancer(
+            factory.getLazyProvider(name, ServiceInstanceListSupplier.class), name);
+    }
+}
+```
+
+### Caffeine Instance Cache
+
+Without caching, every routed request would call `EurekaDiscoveryClient.getInstances()` — a full registry lookup. The Caffeine-backed `CachingServiceInstanceListSupplier` eliminates this overhead:
+
+| Setting | Value | Rationale |
+|---|---|---|
+| Cache TTL | `10s` | Matches Eureka fetch interval — cache never holds staler data than the registry |
+| Cache capacity | `256` | Handles up to 256 distinct service names |
+| Backing store | Caffeine | Heap-only, GC-friendly; no serialization overhead vs Redis |
+
+### No-Instance Handling
+
+When `LoadBalancerClient.choose()` returns `null` (no healthy instances registered), the Gateway throws `IllegalStateException` immediately. This is intentional — the Circuit Breaker catches it, records the failure, and (if the threshold is exceeded) opens the circuit, triggering the `/fallback/auth` or `/fallback/resource` endpoint.
+
+```
+No instances available
+  → IllegalStateException thrown by DatabaseRouteLocator
+  → Resilience4j Circuit Breaker records failure
+  → If failure rate > 50%: circuit OPEN
+  → Fallback controller returns 503 JSON
+```
+
+This is safer than silently routing to a hardcoded hostname, which would produce confusing connection errors.
 
 ---
 
@@ -225,7 +377,22 @@ cp .env.example .env   # fill in your values
 docker compose up -d
 ```
 
-This starts PostgreSQL, Redis, Redis Commander (UI at `http://localhost:8090`), and SonarQube (UI at `http://localhost:9000`).
+Startup order (enforced by `depends_on` + healthchecks):
+
+```
+postgres + redis → migration → eureka-server → auth-service + resource-service → api-gateway
+```
+
+Services available after startup:
+
+| Service | URL |
+|---|---|
+| API Gateway | `http://localhost:8080` |
+| Auth Service | `http://localhost:8081` |
+| Resource Service | `http://localhost:8082` |
+| Eureka Dashboard | `http://localhost:8761` |
+| Redis Commander | `http://localhost:8090` |
+| SonarQube | `http://localhost:9000` |
 
 ### Run services individually
 
@@ -236,18 +403,23 @@ docker compose up -d postgres redis
 # 2. Run database migrations
 cd migration && ./mvnw spring-boot:run
 
-# 3. Start auth-service
+# 3. Start Eureka Server (services need to register somewhere)
+cd eureka-server && ./mvnw spring-boot:run
+
+# 4. Start auth-service
 cd auth-service && ./mvnw spring-boot:run
 
-# 4. Start resource-service
+# 5. Start resource-service
 cd resource-service && ./mvnw spring-boot:run
 
-# 5. Start api-gateway
+# 6. Start api-gateway
 cd api-gateway && ./mvnw spring-boot:run
 
-# 6. Start admin UI (optional)
+# 7. Start admin UI (optional)
 cd gateway-ui && npm install && npm run dev
 ```
+
+> **Tip:** When running locally, services use `EUREKA_URL=http://localhost:8761/eureka/` (the default). No extra env vars needed in dev.
 
 ### Run tests
 
@@ -309,19 +481,34 @@ Testcontainers will spin up PostgreSQL and Redis automatically. No local infra n
 
 ```yaml
 spring:
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+  cloud:
+    eureka:
+      client:
+        service-url:
+          defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+        fetch-registry: true
+        registry-fetch-interval-seconds: 10
+      instance:
+        prefer-ip-address: true
+        lease-renewal-interval-in-seconds: 10
+        lease-expiration-duration-in-seconds: 30
+
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 10s          # sync with registry-fetch-interval-seconds
+        capacity: 256
+      health-check:
+        interval: 10s
+        refetch-instances-interval: 25s
 
 jwt:
   secret: ${JWT_SECRET}
 
 rate-limit:
-  replenish-rate: 20        # fallback: tokens/s if DB unavailable
-  burst-capacity: 40        # fallback: max tokens in bucket
-  allow-on-redis-failure: true   # fail-open when Redis is down
+  replenish-rate: 20
+  burst-capacity: 40
+  allow-on-redis-failure: true
   excluded-paths:
     - /api/auth/login
     - /api/auth/register
@@ -337,24 +524,47 @@ resilience4j:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
+      resourceServiceCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15s
 ```
 
-### `auth-service` — JWT & OAuth2
+### `eureka-server/application.yml`
 
 ```yaml
-jwt:
-  secret: ${JWT_SECRET}
-  access-token-expiry: 900      # 15 minutes
-  refresh-token-expiry: 604800  # 7 days
+server:
+  port: 8761
 
+eureka:
+  instance:
+    hostname: ${EUREKA_HOSTNAME:localhost}
+  client:
+    register-with-eureka: false   # standalone mode — does not register itself
+    fetch-registry: false
+  server:
+    enable-self-preservation: ${EUREKA_SELF_PRESERVATION:false}   # disable in dev
+    eviction-interval-timer-in-ms: ${EUREKA_EVICTION_INTERVAL:15000}
+```
+
+### `auth-service` / `resource-service` — Eureka registration
+
+Both services share the same client config pattern:
+
+```yaml
 spring:
-  security:
-    oauth2:
+  cloud:
+    eureka:
       client:
-        registration:
-          google:
-            client-id: ${GOOGLE_CLIENT_ID}
-            client-secret: ${GOOGLE_CLIENT_SECRET}
+        service-url:
+          defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+        fetch-registry: true
+        registry-fetch-interval-seconds: 10
+      instance:
+        prefer-ip-address: true
+        lease-renewal-interval-in-seconds: 10
+        lease-expiration-duration-in-seconds: 30
+        health-check-url-path: /actuator/health
 ```
 
 ---
@@ -375,6 +585,18 @@ Run migrations:
 
 ```bash
 cd migration && ./mvnw flyway:migrate
+```
+
+### `gateway_routes` table — URI formats
+
+```sql
+-- Direct URL (no service discovery)
+INSERT INTO gateway_routes (route_id, uri, predicates, ...)
+VALUES ('auth-route', 'http://localhost:8081', '["Path=/api/auth/**"]', ...);
+
+-- Service name via Eureka (recommended for production)
+INSERT INTO gateway_routes (route_id, uri, predicates, ...)
+VALUES ('auth-route', 'lb://auth-service', '["Path=/api/auth/**"]', ...);
 ```
 
 ### `rate_limit_config` table
@@ -400,19 +622,27 @@ CREATE TABLE rate_limit_config (
 
 ```
 rbac-gateway/
+├── eureka-server/
+│   └── src/main/java/.../
+│       └── EurekaServerApplication.java   # @EnableEurekaServer
+│   └── src/main/resources/
+│       └── application.yml
+│   └── Dockerfile
+│
 ├── api-gateway/
 │   └── src/main/java/.../
 │       ├── filter/              # JwtAuthenticationFilter, RateLimitFilter
-│       ├── ratelimit/           # RateLimitConfigService, entity, repo, admin API
-│       ├── config/              # GatewayProperties, RateLimitProperties
-│       ├── route/               # DatabaseRouteDefinitionRepository
-│       ├── admin/               # AdminRouteController, AdminRouteService
-│       └── validator/           # JwtValidator
+│       ├── admin/               # ratelimit/, route/ — admin APIs
+│       ├── config/              # GatewayConfig, LoadBalancerConfig,
+│       │                        #   GatewayCircuitBreakerConfig, GatewayProperties
+│       ├── route/               # DatabaseRouteLocator (lb:// resolution)
+│       ├── controller/          # FallbackController
+│       └── validator/           # JwtValidator, RbacPermissionChecker
 │   └── src/main/resources/
 │       ├── application.yml
 │       ├── application-perf.yml
 │       └── scripts/
-│           └── rate_limit.lua   # Token Bucket Lua script (optimized)
+│           └── rate_limit.lua
 │
 ├── auth-service/
 │   └── src/main/java/.../
@@ -440,15 +670,6 @@ rbac-gateway/
 │           ├── ratelimit/       # RateLimitTable, RateLimitFormDialog, ...
 │           └── layout/          # Sidebar
 │
-├── k6/
-│   ├── scenarios/
-│   │   ├── auth_flow.js         # Login → token → resource flow
-│   │   ├── rate_limit.js        # Throughput + 429 behavior
-│   │   └── circuit_breaker.js   # Downstream failure simulation
-│   ├── helpers/
-│   │   └── auth.js              # Shared login helper
-│   └── script.js                # Entry point
-│
 ├── docker/
 │   └── redis/redis.conf
 ├── docker-compose.yml
@@ -465,7 +686,7 @@ Client
   │
   │  POST /api/auth/login  { username, password }
   ▼
-API Gateway ──► Auth Service
+API Gateway ──► Auth Service  (resolved via lb://auth-service → Eureka → LoadBalancer)
                   │  validates credentials
                   │  returns { accessToken, refreshToken }
   ◄──────────────
@@ -477,6 +698,8 @@ API Gateway
   │  RateLimitFilter (-99): Token Bucket check via Redis
   │    ├── allowed → forward + add X-RateLimit-* headers
   │    └── blocked → 429 Too Many Requests (JSON)
+  │  LoadBalancerClient.choose("resource-service")
+  │    └── RoundRobin → ServiceInstance from Caffeine cache (Eureka-backed)
   ▼
 Resource Service
   │  @PreAuthorize / PermissionEvaluator checks JWT claims
@@ -495,7 +718,7 @@ Copy `.env.example` to `.env` before running.
 
 | Variable      | Description          | Default                                      |
 |---------------|----------------------|----------------------------------------------|
-| `DB_URL`      | R2DBC PostgreSQL URL | `r2dbc:postgresql://localhost:5432/postgres` |
+| `DB_URL`      | JDBC PostgreSQL URL  | `jdbc:postgresql://localhost:5432/postgres`  |
 | `DB_USERNAME` | Database username    | `postgres`                                   |
 | `DB_PASSWORD` | Database password    | —                                            |
 
@@ -519,6 +742,15 @@ Copy `.env.example` to `.env` before running.
 |------------------------|----------------------|-----------------------------------------------------------|
 | `GOOGLE_CLIENT_ID`     | OAuth2 client ID     | [Google Cloud Console](https://console.cloud.google.com/) |
 | `GOOGLE_CLIENT_SECRET` | OAuth2 client secret | Google Cloud Console                                      |
+
+### Eureka
+
+| Variable                  | Description                                                  | Default                          |
+|---------------------------|--------------------------------------------------------------|----------------------------------|
+| `EUREKA_URL`              | Eureka server URL (used by all client services)              | `http://localhost:8761/eureka/`  |
+| `EUREKA_HOSTNAME`         | Hostname eureka-server advertises to clients (Docker: container name) | `localhost`             |
+| `EUREKA_SELF_PRESERVATION`| Disable eviction protection (`false` for dev, `true` for prod) | `false`                        |
+| `EUREKA_EVICTION_INTERVAL`| How often (ms) Eureka evicts dead instances                  | `15000`                          |
 
 ### Internal
 
@@ -585,7 +817,7 @@ Testcontainers pulls `postgres:16-alpine` and `redis:7-alpine` automatically on 
 | p99 latency | 38 ms                 | 39 ms               | +1 ms    |
 | Error rate  | 0%                    | 0%                  | —        |
 
-> Gateway overhead ~1–2 ms/request: JWT validation + Redis rate limit (Lua) + route cache lookup + header mutation + Circuit Breaker state check.
+> Gateway overhead ~1–2 ms/request: JWT validation + Redis rate limit (Lua) + route cache lookup + Eureka LB resolve (Caffeine hit) + header mutation + Circuit Breaker state check.
 
 ### Các vấn đề đã phát hiện và xử lý
 
