@@ -58,10 +58,14 @@ abstract class AbstractIntegrationTest {
         circuitBreakerRegistry.getAllCircuitBreakers()
                 .forEach(CircuitBreaker::reset);
 
-        // Flush Redis rate limit keys
+        // Flush Redis rate limit keys và config cache
         Set<String> rateLimitKeys = redisTemplate.keys("rate_limit:*");
         if (rateLimitKeys != null && !rateLimitKeys.isEmpty()) {
             redisTemplate.delete(rateLimitKeys);
+        }
+        Set<String> configCacheKeys = redisTemplate.keys("rl_cfg:*");
+        if (configCacheKeys != null && !configCacheKeys.isEmpty()) {
+            redisTemplate.delete(configCacheKeys);
         }
 
         cleanDynamicDbState();

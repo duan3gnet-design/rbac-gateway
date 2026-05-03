@@ -127,6 +127,7 @@ public class RateLimitFilter implements Filter {
             throws IOException {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+//        response.setCharacterEncoding("UTF-8");
         response.addHeader("Retry-After", "1");
 
         Map<String, Object> body = Map.of(
@@ -136,7 +137,9 @@ public class RateLimitFilter implements Filter {
                 "message",   "Rate limit exceeded. Please retry after 1 second.",
                 "path",      path
         );
-        response.getWriter().write(objectMapper.writeValueAsString(body));
+        byte[] bytes = objectMapper.writeValueAsBytes(body);
+        response.setContentLength(bytes.length);
+        response.getOutputStream().write(bytes);
     }
 
     private boolean isExcludedPath(String path) {

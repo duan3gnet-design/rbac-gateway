@@ -9,7 +9,7 @@ A production-ready **microservices backend** with Role-Based Access Control, JWT
 ```
                     ┌──────────────────────────────────────────┐
                     │              API Gateway                  │
-                    │          (WebFlux · Port 8080)           │
+                    │          (Webmvc · Port 8080)           │
                     │                                          │
                     │  ┌─────────────┐  ┌──────────────────┐  │
                     │  │ JWT Filter  │  │  Rate Limit      │  │
@@ -53,33 +53,33 @@ A production-ready **microservices backend** with Role-Based Access Control, JWT
 
 ## 🏗️ Modules
 
-| Module | Port | Description |
-|---|---|---|
-| `api-gateway` | `8080` | Spring Cloud Gateway (WebFlux) — routing, JWT validation, rate limiting, Circuit Breaker |
-| `auth-service` | `8081` | Authentication — login, refresh token, token revocation, Google OAuth2 |
-| `resource-service` | `8082` | Protected resources — RBAC enforcement, permission-based access control |
-| `migration` | — | Standalone Flyway module — schema versioning & seeding |
-| `gateway-ui` | `5173` | React admin console — route management, rate limit management |
+| Module             | Port   | Description                                                                              |
+|--------------------|--------|------------------------------------------------------------------------------------------|
+| `api-gateway`      | `8080` | Spring Cloud Gateway (WebFlux) — routing, JWT validation, rate limiting, Circuit Breaker |
+| `auth-service`     | `8081` | Authentication — login, refresh token, token revocation, Google OAuth2                   |
+| `resource-service` | `8082` | Protected resources — RBAC enforcement, permission-based access control                  |
+| `migration`        | —      | Standalone Flyway module — schema versioning & seeding                                   |
+| `gateway-ui`       | `5173` | React admin console — route management, rate limit management                            |
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Category | Technology |
-|---|---|
-| Framework | Spring Boot `4.0.5` |
-| Cloud | Spring Cloud `Oakwood` |
-| Gateway | Spring Cloud Gateway (WebFlux / Reactive) |
-| Security | Spring Security, JJWT |
-| OAuth2 | Google OAuth2 (Redirect flow + SDK flow) |
-| Resilience | Resilience4j (Circuit Breaker) |
-| Rate Limiting | Redis Token Bucket (Lua script, atomic) |
-| Database | PostgreSQL + Spring Data R2DBC |
-| Migration | Flyway (separate module) |
-| Cache | Redis (Reactive — `spring-boot-starter-data-redis-reactive`) |
-| Java | Java 21 |
-| Frontend | React 19 + Vite + MUI v7 |
-| Code Quality | SonarQube `2025.1` + JaCoCo |
+| Category      | Technology                                      |
+|---------------|-------------------------------------------------|
+| Framework     | Spring Boot `4.0.5`                             |
+| Cloud         | Spring Cloud `Oakwood`                          |
+| Gateway       | Spring Cloud Gateway (Webmvc / Virtual threads) |
+| Security      | Spring Security, JJWT                           |
+| OAuth2        | Google OAuth2 (Redirect flow + SDK flow)        |
+| Resilience    | Resilience4j (Circuit Breaker)                  |
+| Rate Limiting | Redis Token Bucket (Lua script, atomic)         |
+| Database      | PostgreSQL + Spring Data R2DBC                  |
+| Migration     | Flyway (separate module)                        |
+| Cache         | Redis (`spring-boot-starter-data-redis`)        |
+| Java          | Java 21                                         |
+| Frontend      | React 19 + Vite + MUI v7                        |
+| Code Quality  | SonarQube `2025.1` + JaCoCo                     |
 
 ---
 
@@ -551,137 +551,51 @@ Testcontainers pulls `postgres:16-alpine` and `redis:7-alpine` automatically on 
 
 ### Stack
 
-| Tool | Role |
-|---|---|
-| [k6](https://k6.io/) | Load generator — scripted scenarios, thresholds, checks |
-| Docker Compose | Spin up full stack với `perf` profile |
-
-### Setup
-
-**1. Build và chạy full stack**
-
-```bash
-cp .env.example .env
-docker compose up --build -d
-
-# Đợi tất cả service healthy (~60s)
-docker compose ps
-```
-
-**2. Cài k6**
-
-```bash
-# macOS
-brew install k6
-
-# Windows
-winget install k6
-
-# Hoặc chạy qua Docker, không cần cài local
-docker run --rm -i \
-  --network rbac-gateway_rbac-network \
-  -e BASE_URL=http://api-gateway:8080 \
-  grafana/k6 run - < k6/script.js
-```
-
----
+| Tool                                 | Role                                                    |
+|--------------------------------------|---------------------------------------------------------|
+| [JMeter](https://jmeter.apache.org/) | Load generator — scripted scenarios, thresholds, checks |
+| Docker Compose                       | Spin up full stack với `perf` profile                   |
 
 ### Kịch bản test
 
-JMeter test plan: [RBAC Gateway.jmx](performance-test/RBAC%20Gateway.jmx)
-
-K6 Scripts nằm trong `k6/scenarios/`:
-
-**`auth_flow.js` — Smoke + Load test**
-
-```js
-export const options = {
-  scenarios: {
-    smoke: {
-      executor: 'constant-vus',
-      vus: 5, duration: '30s',
-    },
-    load: {
-      executor: 'ramping-vus',
-      stages: [
-        { duration: '30s', target: 50  },  // ramp up
-        { duration: '2m',  target: 200 },  // sustained
-        { duration: '30s', target: 0   },  // ramp down
-      ],
-    },
-  },
-  thresholds: {
-    http_req_duration: ['p(95)<500', 'p(99)<1000'],
-    http_req_failed:   ['rate<0.01'],
-  },
-};
-```
-
-**`rate_limit.js` — Burst test**
-
-```js
-export const options = {
-  scenarios: {
-    burst: {
-      executor: 'constant-arrival-rate',
-      rate: 500,          // 500 req/s
-      timeUnit: '1s',
-      duration: '30s',
-      preAllocatedVUs: 100,
-    },
-  },
-};
-```
-
-**`circuit_breaker.js` — Failure simulation**
-
-Dừng `resource-service` trong lúc test để xác nhận Circuit Breaker mở đúng, fallback hoạt động, và tự phục hồi về HALF_OPEN sau `waitDurationInOpenState`.
+[RBAC Gateway test plan](<performance-test/RBAC%20Gateway.jmx>)
 
 ---
+### Kết quả đo được (khi service đã chạy ổn định)
 
-### Chạy test k6
+> Môi trường: Docker Compose trên Windows 11 / WSL2, mỗi service giới hạn **2 CPU + 1 GB RAM**, api gateway giới hạn **4 CPU + 3 GB RAM**.
 
-```bash
-# Chạy tất cả scenario
-k6 run k6/script.js
+#### Trực tiếp vs qua Gateway tải cao (500 VUs, 200K Requests)
 
-# Chỉ chạy auth flow
-k6 run k6/scenarios/auth_flow.js
+| Metric      | Direct `:8081` | Via Gateway `:8080` | Overhead |
+|-------------|----------------|---------------------|----------|
+| Throughput  | **2717 req/s** | **2254 req/s**      | ~18%     |
+| p50 latency | 3 ms           | 5 ms                | +2 ms    |
+| p95 latency | 17 ms          | 20 ms               | +3 ms    |
+| p99 latency | 66 ms          | 49 ms               | -17 ms   |
+| Error rate  | 0%             | 0%                  | —        |
 
-# Chạy với BASE_URL tùy chỉnh
-k6 run -e BASE_URL=http://localhost:8080 k6/scenarios/auth_flow.js
+#### Trực tiếp vs qua Gateway tải thấp (500 VUs, 1000 Requests)
 
-# Xuất JSON để phân tích sau
-k6 run --out json=k6/results.json k6/script.js
-```
+| Metric      | Direct `:8081, :8082` | Via Gateway `:8080` | Overhead |
+|-------------|-----------------------|---------------------|----------|
+| Throughput  | **938 req/s**         | **931 req/s**       | ~0.1%    |
+| p50 latency | 4 ms                  | 5 ms                | +1 ms    |
+| p95 latency | 16 ms                 | 9 ms                | -7 ms    |
+| p99 latency | 38 ms                 | 11 ms               | -27 ms   |
+| Error rate  | 0%                    | 0%                  | —        |
 
----
-
-### Kết quả đo được
-
-> Môi trường: Docker Compose trên Windows 11 / WSL2, mỗi service giới hạn **1 CPU + 512 MB RAM**, api gateway giới hạn **4 CPU + 3GB RAM**.
-
-#### Trực tiếp vs qua Gateway
-
-| Metric | Direct `:8081` | Via Gateway `:8080` | Overhead |
-|---|----------------|--------------------|----------|
-| Throughput | **2717 req/s** | **2254 req/s**     | ~18%     |
-| p50 latency | 3 ms          | 5 ms              | +2 ms    |
-| p95 latency | 17 ms         | 20 ms             | +3 ms    |
-| p99 latency | 66 ms         | 49 ms             | -17 ms   |
-| Error rate | 0%             | 0%                 | —        |
-
-> Gateway overhead ~2–3 ms/request: JWT validation + Redis rate limit (Lua) + route cache lookup + header mutation + Circuit Breaker state check.
+> Gateway overhead ~1–2 ms/request: JWT validation + Redis rate limit (Lua) + route cache lookup + header mutation + Circuit Breaker state check.
 
 ### Các vấn đề đã phát hiện và xử lý
 
-| Vấn đề | Nguyên nhân gốc | Fix |
-|---|---|---|
-| Redis command timed out (lần 1) | `appendonly yes` → fsync blocking dưới tải | Tắt AOF + RDB snapshot trong `redis.conf` |
-| Redis command timed out (lần 1) | Redis `timeout: 1s` quá thấp | Tăng lên `3s` trong `application.yml` |
-| Redis command timed out (lần 1) | `KEYS *` blocking trong `invalidateAllConfigCache` | Thay bằng `SCAN` với `count(100)` |
-| Redis command timed out (lần 2) | `commons-pool2` thiếu → Lettuce dùng 1 shared connection | Thêm dependency + `pool.enabled: true` |
-| Redis command timed out (lần 2) | Lua script gọi 4 Redis commands riêng lẻ | Gộp thành `MGET` + `MSET` → 3 round-trips |
+| Vấn đề                          | Nguyên nhân gốc                                          | Fix                                       |
+|---------------------------------|----------------------------------------------------------|-------------------------------------------|
+| Redis command timed out (lần 1) | `appendonly yes` → fsync blocking dưới tải               | Tắt AOF + RDB snapshot trong `redis.conf` |
+| Redis command timed out (lần 1) | Redis `timeout: 1s` quá thấp                             | Tăng lên `3s` trong `application.yml`     |
+| Redis command timed out (lần 1) | `KEYS *` blocking trong `invalidateAllConfigCache`       | Thay bằng `SCAN` với `count(100)`         |
+| Redis command timed out (lần 2) | `commons-pool2` thiếu → Lettuce dùng 1 shared connection | Thêm dependency + `pool.enabled: true`    |
+| Redis command timed out (lần 2) | Lua script gọi 4 Redis commands riêng lẻ                 | Gộp thành `MGET` + `MSET` → 3 round-trips |
 
 ---
 

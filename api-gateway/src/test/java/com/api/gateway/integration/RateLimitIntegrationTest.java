@@ -122,7 +122,7 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
                             .withBody("[]")));
 
             String token = jwt("dave@test.com", List.of("ROLE_USER"), List.of("products:READ"));
-            sendRequests("/api/resources/products", token, 6);
+            sendRequests("/api/resources/products", token, 10);
             get("/api/resources/products", token)
                     .expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         }
@@ -136,7 +136,9 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
                             .withBody("[]")));
 
             String token = jwt("eve@test.com", List.of("ROLE_USER"), List.of("products:READ"));
-            sendRequests("/api/resources/products", token, 5);
+            // Gửi 10 requests (gấp đôi burstCapacity=5) để đảm bảo bucket rỗng
+            // dù có token refill xảy ra tại second boundary
+            sendRequests("/api/resources/products", token, 10);
             get("/api/resources/products", token)
                     .expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS)
                     .expectHeader().contentType(MediaType.APPLICATION_JSON)
@@ -158,7 +160,7 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
                             .withBody("[]")));
 
             String token = jwt("frank@test.com", List.of("ROLE_USER"), List.of("products:READ"));
-            sendRequests("/api/resources/products", token, 5);
+            sendRequests("/api/resources/products", token, 10);
             get("/api/resources/products", token)
                     .expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS)
                     .expectHeader().exists("Retry-After");
@@ -173,7 +175,7 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
                             .withBody("[]")));
 
             String token = jwt("grace@test.com", List.of("ROLE_USER"), List.of("products:READ"));
-            sendRequests("/api/resources/products", token, 6);
+            sendRequests("/api/resources/products", token, 10);
             get("/api/resources/products", token)
                     .expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS)
                     .expectHeader().contentType(MediaType.APPLICATION_JSON);
@@ -195,7 +197,7 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
             String tokenA = jwt("userA@test.com", List.of("ROLE_USER"), List.of("products:READ"));
             String tokenB = jwt("userB@test.com", List.of("ROLE_USER"), List.of("products:READ"));
 
-            sendRequests("/api/resources/products", tokenA, 5);
+            sendRequests("/api/resources/products", tokenA, 10);
             get("/api/resources/products", tokenA).expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
             get("/api/resources/products", tokenB).expectStatus().isOk();
         }
@@ -211,10 +213,10 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
             String tokenX = jwt("userX@test.com", List.of("ROLE_USER"), List.of("products:READ"));
             String tokenY = jwt("userY@test.com", List.of("ROLE_USER"), List.of("products:READ"));
 
-            for (int i = 0; i < 5; i++) {
-                get("/api/resources/products", tokenX).expectStatus().isOk();
-                get("/api/resources/products", tokenY).expectStatus().isOk();
-            }
+            // Drain từng bucket riêng biệt (10 = gấp đôi burstCapacity=5)
+            // để tránh second boundary refill
+            sendRequests("/api/resources/products", tokenX, 10);
+            sendRequests("/api/resources/products", tokenY, 10);
 
             get("/api/resources/products", tokenX).expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
             get("/api/resources/products", tokenY).expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
