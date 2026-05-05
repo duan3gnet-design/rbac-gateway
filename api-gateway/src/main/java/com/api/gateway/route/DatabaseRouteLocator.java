@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
+import org.springframework.cloud.gateway.server.mvc.handler.GatewayRouterFunctions;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.function.RouterFunction;
@@ -22,7 +23,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.springframework.cloud.gateway.server.mvc.filter.BeforeFilterFunctions.uri;
 import static org.springframework.cloud.gateway.server.mvc.filter.CircuitBreakerFilterFunctions.circuitBreaker;
 import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFunctions.http;
-import static org.springframework.web.servlet.function.RouterFunctions.route;
 
 /**
  * Load routes từ PostgreSQL và expose qua RouterFunction (Gateway MVC).
@@ -68,7 +68,7 @@ public class DatabaseRouteLocator {
     @EventListener(RouteRefreshEvent.class)
     public void onRefreshRoutes(RouteRefreshEvent event) {
         routerCache.set(null);
-        log.info("Route cache invalidated");
+        log.info("Route cache invalidated — will reload from database on next request");
     }
 
     public RouterFunction<ServerResponse> reload() {
@@ -99,7 +99,7 @@ public class DatabaseRouteLocator {
         String cbName = extractCircuitBreakerName(entity.filters(), entity.id(), "name");
         String fallbackUri = extractCircuitBreakerName(entity.filters(), entity.id(), "fallbackUri");
         String statusCodes = extractCircuitBreakerName(entity.filters(), entity.id(), "statusCodes");
-        RouterFunctions.Builder route = route()
+        RouterFunctions.Builder route = GatewayRouterFunctions.route(entity.id())
                 .GET(pathPattern, req -> handle(req, configuredUri))
                 .POST(pathPattern, req -> handle(req, configuredUri))
                 .PUT(pathPattern, req -> handle(req, configuredUri))

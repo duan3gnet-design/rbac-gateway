@@ -1,5 +1,7 @@
 package com.api.gateway.integration;
 
+import com.github.tomakehurst.wiremock.WireMockServer;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -14,6 +16,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -60,7 +63,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                 .compact();
     }
 
-    /** Helper: tạo route mới qua API, trả về routeId */
+    /** Helper: tạo route mới qua API, path = /api/{routeId}/** */
     private void createTestRoute(String routeId) {
         webClient.post().uri("/api/admin/routes")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
@@ -368,6 +371,108 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                     .expectBody()
                     .jsonPath("$.updatedAt").value(after ->
                             assertNotEquals(updatedAtBefore.get(), after.toString()));
+        }
+
+        @Test @Order(43)
+        @DisplayName("PUT uri mới → Gateway reload và proxy request đến uri mới")
+        void updateRoute_newUri_gatewayShouldProxyToNewUri() {
+            // ── Arrange ──────────────────────────────────────────────────────
+            // Dùng path "/api/resources/products/uri-test/**" vì:
+            //   1. RbacPermissionChecker đã có rule:
+            //      GET /api/resources/products/** → "products:READ"
+            //   2. userJwt() có permission "products:READ" → JwtAuthenticationFilter pass
+            //   3. Dùng sub-path "/uri-test/**" để không conflict với seeded routes
+            //      (seeded "resource-service" match "/api/resources/**", order=6)
+            //   4. Route test này dùng order=1 → đứng trên seeded route → được match trước
+            final String TEST_PATH    = "/api/resources/products/uri-test/**";
+            final String REQUEST_PATH = "/api/resources/products/uri-test/ping";
+            final String ROUTE_ID     = "uri-update-test";
+
+            // Spin up WireMock thứ 2 — đại diện cho "upstream mới sau khi update"
+            WireMockServer newUpstream = new WireMockServer(
+                    WireMockConfiguration.wireMockConfig().dynamicPort());
+            newUpstream.start();
+
+            try {
+                String oldUpstreamUri = "http://localhost:" + wireMock.port();
+                String newUpstreamUri = "http://localhost:" + newUpstream.port();
+
+                // Stub cả 2 WireMock — cùng path, khác body để phân biệt ai đang serve
+                wireMock.stubFor(get(urlPathEqualTo(REQUEST_PATH))
+                        .willReturn(aResponse()
+                                .withStatus(200)
+                                .withHeader("Content-Type", "application/json")
+                                .withBody("{\"from\":\"old-upstream\"}")));
+
+                newUpstream.stubFor(get(urlPathEqualTo(REQUEST_PATH))
+                        .willReturn(aResponse()
+                                .withStatus(200)
+                                .withHeader("Content-Type", "application/json")
+                                .withBody("{\"from\":\"new-upstream\"}")));
+
+                // Tạo route trỏ vào old upstream, order=1 để override seeded routes
+                webClient.post().uri("/api/admin/routes")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .bodyValue("""
+                                {
+                                  "id": "%s",
+                                  "uri": "%s",
+                                  "predicates": "[{\\"name\\":\\"Path\\",\\"args\\":{\\"pattern\\":\\"%s\\"}}]",
+                                  "filters": "[]",
+                                  "routeOrder": 1,
+                                  "enabled": true
+                                }
+                                """.formatted(ROUTE_ID, oldUpstreamUri, TEST_PATH))
+                        .exchange()
+                        .expectStatus().isEqualTo(HttpStatus.CREATED);
+
+                // ── Act 1: verify proxy đến old upstream ─────────────────────
+                // userJwt() có "products:READ" → hasPermission() pass → 200
+                webClient.get().uri(REQUEST_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userJwt())
+                        .exchange()
+                        .expectStatus().isOk()
+                        .expectBody()
+                        .jsonPath("$.from").isEqualTo("old-upstream");
+
+                // ── Act 2: PUT uri → trỏ sang new upstream ───────────────────
+                // Sau khi PUT thành công, AdminRouteService publish RouteRefreshEvent
+                // synchronously → DatabaseRouteLocator.onRefreshRoutes() nullify cache
+                // → request tiếp theo sẽ reload() từ DB với URI đã cập nhật
+                webClient.put().uri("/api/admin/routes/" + ROUTE_ID)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .bodyValue("""
+                                {
+                                  "id": "%s",
+                                  "uri": "%s",
+                                  "predicates": "[{\\"name\\":\\"Path\\",\\"args\\":{\\"pattern\\":\\"%s\\"}}]",
+                                  "filters": "[]",
+                                  "routeOrder": 1,
+                                  "enabled": true
+                                }
+                                """.formatted(ROUTE_ID, newUpstreamUri, TEST_PATH))
+                        .exchange()
+                        .expectStatus().isOk()
+                        .expectBody()
+                        .jsonPath("$.uri").isEqualTo(newUpstreamUri);
+
+                // ── Assert: Gateway proxy đến new upstream ────────────────────
+                webClient.get().uri(REQUEST_PATH)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + userJwt())
+                        .exchange()
+                        .expectStatus().isOk()
+                        .expectBody()
+                        .jsonPath("$.from").isEqualTo("new-upstream");
+
+                // Mỗi upstream nhận đúng 1 request — không nhầm lẫn sau khi update
+                wireMock.verify(1,      getRequestedFor(urlPathEqualTo(REQUEST_PATH)));
+                newUpstream.verify(1,   getRequestedFor(urlPathEqualTo(REQUEST_PATH)));
+
+            } finally {
+                newUpstream.stop();
+            }
         }
     }
 

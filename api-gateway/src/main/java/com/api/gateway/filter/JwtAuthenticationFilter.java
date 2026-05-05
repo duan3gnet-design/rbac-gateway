@@ -39,6 +39,7 @@ public class JwtAuthenticationFilter implements HandlerInterceptor {
             "/error",
             "/fallback/auth",
             "/fallback/resource",
+            "/actuator/**",
             "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout",
             "/api/auth/validate",
             "/api/auth/google", "/oauth2/**", "/login/oauth2/**"
