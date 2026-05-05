@@ -70,7 +70,7 @@ public class AdminRouteService {
                 req.id(), req.uri(),
                 req.predicates(), req.filters(),
                 req.routeOrder(), req.enabled(),
-                OffsetDateTime.now(), OffsetDateTime.now()
+                OffsetDateTime.now(), OffsetDateTime.now(), true
         );
         var saved = routeRepo.save(entity);
         publishRefresh("create", saved.id());

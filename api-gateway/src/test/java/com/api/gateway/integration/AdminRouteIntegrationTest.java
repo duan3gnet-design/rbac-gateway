@@ -41,7 +41,8 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
     }
 
     private String adminJwt() {
-        return jwt("admin@test.com", List.of("ROLE_ADMIN"), List.of("users:READ"));
+        return jwt("admin@test.com", List.of("ROLE_ADMIN"),
+                List.of("users:READ", "admin:READ", "admin:CREATE", "admin:UPDATE", "admin:DELETE"));
     }
 
     private String userJwt() {

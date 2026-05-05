@@ -26,7 +26,11 @@ public class RbacPermissionChecker {
             new PermissionRule("DELETE", "/api/resources/admin/users/**",  "users:DELETE"),
             new PermissionRule("GET",    "/api/resources/profile/**",      "profile:READ"),
             new PermissionRule("PUT",    "/api/resources/profile/**",      "profile:UPDATE"),
-            new PermissionRule("POST",   "/api/auth/logout-all",           "auth:LOGOUT_ALL")
+            new PermissionRule("POST",   "/api/auth/logout-all",           "auth:LOGOUT_ALL"),
+            new PermissionRule("GET",    "/api/admin/**",  "admin:READ"),
+            new PermissionRule("POST",   "/api/admin/**",  "admin:CREATE"),
+            new PermissionRule("PUT",    "/api/admin/**",  "admin:UPDATE"),
+            new PermissionRule("DELETE", "/api/admin/**",  "admin:DELETE")
     );
 
     private final AntPathMatcher matcher = new AntPathMatcher();

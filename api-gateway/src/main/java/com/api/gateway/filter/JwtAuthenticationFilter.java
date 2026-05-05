@@ -6,7 +6,10 @@ import com.auth.service.dto.ClaimsResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -22,7 +25,9 @@ import java.util.List;
  * Claims được lưu vào request attribute "jwt.claims" để RateLimitFilter tái dụng.</p>
  */
 @Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
+@Slf4j
 public class JwtAuthenticationFilter implements HandlerInterceptor {
 
     private final JwtValidator jwtValidator;
@@ -31,6 +36,9 @@ public class JwtAuthenticationFilter implements HandlerInterceptor {
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
     private static final List<String> PUBLIC_PATHS = List.of(
+            "/error",
+            "/fallback/auth",
+            "/fallback/resource",
             "/api/auth/login", "/api/auth/register", "/api/auth/refresh", "/api/auth/logout",
             "/api/auth/validate",
             "/api/auth/google", "/oauth2/**", "/login/oauth2/**"
@@ -45,6 +53,7 @@ public class JwtAuthenticationFilter implements HandlerInterceptor {
         String path   = request.getRequestURI();
         String method = request.getMethod();
 
+        log.debug("path: {}", path);
         if (isPublicPath(path)) {
             return true;
         }

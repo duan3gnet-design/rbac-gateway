@@ -15,19 +15,16 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 
-/**
- * Base class cho tất cả integration test.
- *
- * <h3>Một Spring context duy nhất cho toàn suite</h3>
- * <p>Không dùng @DirtiesContext. Thay vào đó cleanDynamicDbState() chạy
- * trong @BeforeEach để reset DB/Redis về trạng thái seed trước mỗi test.</p>
- */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import(PostgreSQLContainerConfig.class)
+@Import({PostgreSQLContainerConfig.class})
 abstract class AbstractIntegrationTest {
+
+    /** Tên tất cả CB được pre-register trong TestCircuitBreakerConfig */
+    private static final List<String> CB_NAMES = List.of("authServiceCB", "resourceServiceCB");
 
     protected static final com.github.tomakehurst.wiremock.WireMockServer wireMock =
             PostgreSQLContainerConfig.WIRE_MOCK;
@@ -55,10 +52,16 @@ abstract class AbstractIntegrationTest {
     void baseSetUp() {
         wireMock.resetAll();
 
-        circuitBreakerRegistry.getAllCircuitBreakers()
-                .forEach(CircuitBreaker::reset);
+        // Reset CB bằng find() thay vì getAllCircuitBreakers() —
+        // getAllCircuitBreakers() chỉ trả về CB đã được lấy ra qua circuitBreaker(),
+        // có thể bỏ sót nếu registry được tạo lại.
+        // find() lookup trực tiếp trong registry map — luôn tìm thấy CB đã pre-register.
+        CB_NAMES.forEach(name ->
+                circuitBreakerRegistry.find(name)
+                        .ifPresent(CircuitBreaker::reset)
+        );
 
-        // Flush Redis rate limit keys và config cache
+        // Flush Redis
         Set<String> rateLimitKeys = redisTemplate.keys("rate_limit:*");
         if (rateLimitKeys != null && !rateLimitKeys.isEmpty()) {
             redisTemplate.delete(rateLimitKeys);
@@ -77,11 +80,7 @@ abstract class AbstractIntegrationTest {
                 .build();
     }
 
-    /**
-     * Reset DB về trạng thái seed trước mỗi test.
-     */
     private void cleanDynamicDbState() {
-        // 1. Xóa route_permissions của dynamic routes
         jdbcTemplate.update("""
                 DELETE FROM route_permissions
                 WHERE route_id NOT IN (
@@ -90,7 +89,6 @@ abstract class AbstractIntegrationTest {
                 )
                 """);
 
-        // 2. Xóa dynamic gateway_routes
         jdbcTemplate.update("""
                 DELETE FROM gateway_routes
                 WHERE id NOT IN (
@@ -99,7 +97,6 @@ abstract class AbstractIntegrationTest {
                 )
                 """);
 
-        // 3. Reset seeded routes về trạng thái gốc
         String wireMockUri = "http://localhost:" + PostgreSQLContainerConfig.WIRE_MOCK.port();
         jdbcTemplate.update("""
                 UPDATE gateway_routes
@@ -112,10 +109,8 @@ abstract class AbstractIntegrationTest {
                 )
                 """, wireMockUri);
 
-        // 4. Xóa per-user rate limit overrides
         jdbcTemplate.update("DELETE FROM rate_limit_config WHERE username IS NOT NULL");
 
-        // 5. Reset global default
         jdbcTemplate.update("""
                 UPDATE rate_limit_config
                 SET replenish_rate = 5,

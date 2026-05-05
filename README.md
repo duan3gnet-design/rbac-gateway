@@ -216,7 +216,7 @@ To switch an existing route to use service discovery:
 ```sql
 UPDATE gateway_routes
 SET uri = 'lb://auth-service'
-WHERE route_id = 'auth-route';
+WHERE id = 'auth-route';
 ```
 
 ### Self-Preservation Mode
@@ -591,12 +591,12 @@ cd migration && ./mvnw flyway:migrate
 
 ```sql
 -- Direct URL (no service discovery)
-INSERT INTO gateway_routes (route_id, uri, predicates, ...)
-VALUES ('auth-route', 'http://localhost:8081', '["Path=/api/auth/**"]', ...);
+INSERT INTO gateway_routes (id, uri, predicates)
+VALUES ('auth-route', 'http://localhost:8081', '["Path=/api/auth/**"]');
 
 -- Service name via Eureka (recommended for production)
-INSERT INTO gateway_routes (route_id, uri, predicates, ...)
-VALUES ('auth-route', 'lb://auth-service', '["Path=/api/auth/**"]', ...);
+INSERT INTO gateway_routes (id, uri, predicates)
+VALUES ('auth-route', 'lb://auth-service', '["Path=/api/auth/**"]');
 ```
 
 ### `rate_limit_config` table

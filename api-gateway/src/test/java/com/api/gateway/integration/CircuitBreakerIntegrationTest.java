@@ -56,6 +56,9 @@ class CircuitBreakerIntegrationTest extends AbstractIntegrationTest {
         drain(() -> webClient.post().uri("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(body).exchange(), 5);
 
+        CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("authServiceCB");
+        Assertions.assertEquals(CircuitBreaker.State.OPEN, cb.getState());
+
         webClient.post().uri("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(body)
                 .exchange()
@@ -74,6 +77,9 @@ class CircuitBreakerIntegrationTest extends AbstractIntegrationTest {
 
         drain(() -> webClient.post().uri("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{}").exchange(), 5);
+
+        CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("authServiceCB");
+        Assertions.assertEquals(CircuitBreaker.State.OPEN, cb.getState());
 
         webClient.post().uri("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{}")
@@ -94,6 +100,9 @@ class CircuitBreakerIntegrationTest extends AbstractIntegrationTest {
         String token = jwt("user@test.com", List.of("ROLE_USER"), List.of("products:READ"));
         drain(() -> webClient.get().uri("/api/resources/products")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange(), 4);
+
+        CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("resourceServiceCB");
+        Assertions.assertEquals(CircuitBreaker.State.OPEN, cb.getState());
 
         webClient.get().uri("/api/resources/products")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
@@ -124,7 +133,7 @@ class CircuitBreakerIntegrationTest extends AbstractIntegrationTest {
                         .withHeader("Content-Type", "application/json")
                         .withBody("[]")));
 
-        Thread.sleep(2_500); // chờ wait-duration-in-open-state (2s) → HALF_OPEN
+        Thread.sleep(1_100); // chờ wait-duration-in-open-state (1s) → HALF_OPEN
 
         webClient.get().uri("/api/resources/products")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)

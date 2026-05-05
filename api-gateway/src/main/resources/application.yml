@@ -95,6 +95,7 @@ rate-limit:
     - /oauth2/**
     - /login/oauth2/**
     - /actuator/**
+    - /error
 
 # ==================== RESILIENCE4J ====================
 resilience4j:

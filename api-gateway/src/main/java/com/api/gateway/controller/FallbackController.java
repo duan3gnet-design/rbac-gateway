@@ -1,6 +1,7 @@
 package com.api.gateway.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -11,17 +12,20 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/fallback")
 public class FallbackController {
 
     @RequestMapping("/auth")
     public ResponseEntity<Map<String, Object>> authFallback(HttpServletRequest request) {
+        log.info("fallback auth: {}", request.getRequestURI());
         return buildFallbackResponse("auth-service", request.getRequestURI());
     }
 
     @RequestMapping("/resource")
     public ResponseEntity<Map<String, Object>> resourceFallback(HttpServletRequest request) {
+        log.info("fallback resource: {}", request.getRequestURI());
         return buildFallbackResponse("resource-service", request.getRequestURI());
     }
 

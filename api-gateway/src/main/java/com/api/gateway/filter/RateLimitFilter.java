@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -18,6 +19,7 @@ import org.springframework.http.MediaType;
 import org.springframework.scripting.support.ResourceScriptSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
+import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -34,7 +36,7 @@ import java.util.Map;
 @Component
 @Order(-99)
 @RequiredArgsConstructor
-public class RateLimitFilter implements Filter {
+public class RateLimitFilter implements HandlerInterceptor {
 
     private final StringRedisTemplate         redisTemplate;
     private final RateLimitProperties         fallbackProperties;
@@ -54,16 +56,14 @@ public class RateLimitFilter implements Filter {
     }
 
     @Override
-    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse,
-                         FilterChain chain) throws IOException, ServletException {
-        HttpServletRequest  request  = (HttpServletRequest) servletRequest;
-        HttpServletResponse response = (HttpServletResponse) servletResponse;
+    public boolean preHandle(HttpServletRequest request,
+                             @NonNull HttpServletResponse response,
+                             @NonNull Object handler) throws IOException {
 
         String path = request.getRequestURI();
 
         if (isExcludedPath(path)) {
-            chain.doFilter(request, response);
-            return;
+            return true;
         }
 
         ClaimsResponse claims = (ClaimsResponse) request.getAttribute("jwt.claims");
@@ -78,12 +78,13 @@ public class RateLimitFilter implements Filter {
                 ? rateLimitConfigService.resolveConfig(username)
                 : rateLimitConfigService.resolveGlobalDefault();
 
-        checkRateLimit(request, response, chain, identity, cfg[0], cfg[1]);
+        checkRateLimit(request, response, identity, cfg[0], cfg[1]);
+        return true;
     }
 
     private void checkRateLimit(HttpServletRequest request, HttpServletResponse response,
-                                FilterChain chain, String identity,
-                                int replenishRate, int burstCapacity) throws IOException, ServletException {
+                                String identity,
+                                int replenishRate, int burstCapacity) throws IOException {
         String tokensKey    = "rate_limit:" + identity + ".tokens";
         String timestampKey = "rate_limit:" + identity + ".timestamp";
 
@@ -105,7 +106,6 @@ public class RateLimitFilter implements Filter {
             response.addHeader("X-RateLimit-Replenish-Rate", String.valueOf(replenishRate));
 
             if (allowed) {
-                chain.doFilter(request, response);
                 return;
             }
 
@@ -116,7 +116,6 @@ public class RateLimitFilter implements Filter {
             log.error("Redis rate limit error for [{}]: {}", identity, e.getMessage());
             if (fallbackProperties.allowOnRedisFailure()) {
                 log.warn("Redis unavailable — allowing request through (fail-open)");
-                chain.doFilter(request, response);
             } else {
                 writeTooManyRequests(response, request.getRequestURI(), 0L);
             }

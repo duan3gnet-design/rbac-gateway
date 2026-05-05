@@ -30,7 +30,10 @@ public class PostgreSQLContainerConfig {
     public static final GenericContainer REDIS_CONTAINER;
 
     static {
-        WIRE_MOCK = new WireMockServer(WireMockConfiguration.wireMockConfig().dynamicPort());
+        WIRE_MOCK = new WireMockServer(WireMockConfiguration
+                .wireMockConfig()
+                .dynamicPort()
+                .http2PlainDisabled(true));
         WIRE_MOCK.start();
 
         REDIS_CONTAINER = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
