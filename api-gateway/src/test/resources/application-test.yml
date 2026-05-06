@@ -84,3 +84,4 @@ logging:
     com.api.gateway: DEBUG
     org.springframework.cloud.gateway: WARN
     io.github.resilience4j: DEBUG
+

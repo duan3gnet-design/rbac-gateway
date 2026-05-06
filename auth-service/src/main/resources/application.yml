@@ -3,7 +3,7 @@ server:
 
 spring:
   application:
-    name: auth-service
+    name: rbac-auth
 
   datasource:
     url: jdbc:postgresql://localhost:5432/postgres

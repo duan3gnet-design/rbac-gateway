@@ -225,14 +225,14 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test @Order(22)
-        @DisplayName("GET resource-service route → permissionIds không rỗng (seeded)")
+        @DisplayName("GET resource-products route → permissionIds không rỗng (seeded)")
         void getRoute_resourceService_permissionIdsShouldBeSeeded() {
-            webClient.get().uri("/api/admin/routes/resource-service")
+            webClient.get().uri("/api/admin/routes/resource-products")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
                     .exchange()
                     .expectStatus().isOk()
                     .expectBody()
-                    .jsonPath("$.id").isEqualTo("resource-service")
+                    .jsonPath("$.id").isEqualTo("resource-products")
                     .jsonPath("$.permissionIds").isArray()
                     .jsonPath("$.permissionIds.length()").value(len ->
                             assertTrue((Integer) len > 0));

@@ -160,7 +160,7 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
                             .withBody("[]")));
 
             String token = jwt("frank@test.com", List.of("ROLE_USER"), List.of("products:READ"));
-            sendRequests("/api/resources/products", token, 10);
+            sendRequests("/api/resources/products", token, 11);
             get("/api/resources/products", token)
                     .expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS)
                     .expectHeader().exists("Retry-After");
@@ -197,7 +197,7 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
             String tokenA = jwt("userA@test.com", List.of("ROLE_USER"), List.of("products:READ"));
             String tokenB = jwt("userB@test.com", List.of("ROLE_USER"), List.of("products:READ"));
 
-            sendRequests("/api/resources/products", tokenA, 10);
+            sendRequests("/api/resources/products", tokenA, 11);
             get("/api/resources/products", tokenA).expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
             get("/api/resources/products", tokenB).expectStatus().isOk();
         }
