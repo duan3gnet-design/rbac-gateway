@@ -1,13 +1,7 @@
--- V1.7__create_route_permission_rules_view.sql
+-- V1.3__create_route_permission_rules_view.sql (rbac_gateway database)
 --
 -- View phẳng cho RbacPermissionChecker:
 -- mỗi row = 1 rule (route_id, path_pattern, http_method, permission_code).
---
--- Cú pháp jsonb đúng:
---   elem->'args'->>'pattern'   (-> giữ jsonb, ->> lấy text value)
---   elem->>'name'              (lấy text của field "name")
--- KHÔNG dùng elem->>'args'->>'pattern' vì ->> trả TEXT,
--- và TEXT không hỗ trợ toán tử -> / ->>.
 
 CREATE OR REPLACE VIEW route_permission_rules AS
 SELECT

@@ -1,11 +1,17 @@
 auth:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/postgres}
+    url: ${AUTH_DB_URL:jdbc:postgresql://localhost:5432/rbac_auth}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD}
 
 resource:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/postgres}
+    url: ${RESOURCE_DB_URL:jdbc:postgresql://localhost:5432/rbac_resource}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+
+gateway:
+  datasource:
+    url: ${GATEWAY_DB_URL:jdbc:postgresql://localhost:5432/rbac_gateway}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD}

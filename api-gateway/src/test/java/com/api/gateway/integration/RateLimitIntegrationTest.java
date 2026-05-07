@@ -216,9 +216,9 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
             // Drain từng bucket riêng biệt (10 = gấp đôi burstCapacity=5)
             // để tránh second boundary refill
             sendRequests("/api/resources/products", tokenX, 10);
-            sendRequests("/api/resources/products", tokenY, 10);
-
             get("/api/resources/products", tokenX).expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+
+            sendRequests("/api/resources/products", tokenY, 10);
             get("/api/resources/products", tokenY).expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         }
     }

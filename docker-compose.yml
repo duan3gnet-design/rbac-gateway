@@ -15,6 +15,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres}" ]
       interval: 10s
@@ -113,12 +114,11 @@ services:
       dockerfile: migration/Dockerfile
     container_name: rbac-migration
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: postgres
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-12345}
-      DB_URL: jdbc:postgresql://postgres:5432/postgres
+      AUTH_DB_URL: jdbc:postgresql://postgres:5432/rbac_auth
+      RESOURCE_DB_URL: jdbc:postgresql://postgres:5432/rbac_resource
+      GATEWAY_DB_URL: jdbc:postgresql://postgres:5432/rbac_gateway
     depends_on:
       postgres:
         condition: service_healthy
@@ -135,11 +135,9 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: perf
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: postgres
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-12345}
+      AUTH_DB_URL: jdbc:postgresql://postgres:5432/rbac_auth
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
@@ -183,11 +181,9 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: perf
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: postgres
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-12345}
+      RESOURCE_DB_URL: jdbc:postgresql://postgres:5432/rbac_resource
       AUTH_SERVICE_URL: http://auth-service:8081
       INTERNAL_SECRET: ${INTERNAL_SECRET:-changeme-internal-secret}
       # Eureka: trỏ vào container eureka-server trong cùng network
@@ -226,11 +222,9 @@ services:
     restart: unless-stopped
     environment:
       SPRING_PROFILES_ACTIVE: perf
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: postgres
       DB_USERNAME: ${DB_USERNAME:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-12345}
+      GATEWAY_DB_URL: jdbc:postgresql://postgres:5432/rbac_gateway
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}

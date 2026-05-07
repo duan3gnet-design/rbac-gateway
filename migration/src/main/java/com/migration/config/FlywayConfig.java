@@ -33,4 +33,17 @@ public class FlywayConfig {
                 .baselineOnMigrate(true)
                 .load();
     }
+
+    @Bean(initMethod = "migrate")
+    public Flyway flywayGateway(
+            @Value("${gateway.datasource.url}") String url,
+            @Value("${gateway.datasource.username}") String username,
+            @Value("${gateway.datasource.password}") String password) {
+        return Flyway.configure()
+                .dataSource(url, username, password)
+                .locations("classpath:db/gateway")
+                .schemas("public")
+                .baselineOnMigrate(true)
+                .load();
+    }
 }

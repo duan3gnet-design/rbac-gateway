@@ -14,7 +14,7 @@ spring:
 
   # ==================== DATASOURCE (HikariCP) ====================
   datasource:
-    url: jdbc:postgresql://localhost:5432/postgres
+    url: ${GATEWAY_DB_URL:jdbc:postgresql://localhost:5432/rbac_gateway}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD}
     hikari:

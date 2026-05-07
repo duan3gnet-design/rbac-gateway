@@ -1,3 +1,5 @@
+-- V1.0__create_resource_tables.sql (rbac_resource database)
+
 CREATE TABLE products (
     id          BIGSERIAL PRIMARY KEY,
     name        VARCHAR(255) NOT NULL,
