@@ -147,6 +147,7 @@ services:
       INTERNAL_SECRET: ${INTERNAL_SECRET:-changeme-internal-secret}
       # Eureka: trỏ vào container eureka-server trong cùng network
       EUREKA_URL: http://eureka-server:8761/eureka/
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
     ports:
       - "8081:8081"
     depends_on:
@@ -188,6 +189,7 @@ services:
       INTERNAL_SECRET: ${INTERNAL_SECRET:-changeme-internal-secret}
       # Eureka: trỏ vào container eureka-server trong cùng network
       EUREKA_URL: http://eureka-server:8761/eureka/
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
     ports:
       - "8082:8082"
     depends_on:
@@ -232,6 +234,8 @@ services:
       INTERNAL_SECRET: ${INTERNAL_SECRET:-changeme-internal-secret}
       # Eureka: trỏ vào container eureka-server trong cùng network
       EUREKA_URL: http://eureka-server:8761/eureka/
+      # Jaeger OTLP — dùng HTTP port 4318, Spring Boot gửi qua HTTP/Protobuf
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
     ports:
       - "8080:8080"
     depends_on:
@@ -268,12 +272,77 @@ services:
     networks:
       - rbac-network
 
+  # ==================== Jaeger (OTLP + UI) ====================
+  jaeger:
+    image: jaegertracing/jaeger:2.6.0
+    container_name: rbac-jaeger
+    restart: unless-stopped
+    environment:
+      # Jaeger v2 all-in-one nạp config từ đây
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC receiver (nhận spans từ api-gateway)
+      - "4318:4318"     # OTLP HTTP receiver
+      - "14269:14269"
+    networks:
+      - rbac-network
+
+  # ==================== Prometheus ====================
+  prometheus:
+    image: prom/prometheus:v3.4.0
+    container_name: rbac-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+      - --web.console.libraries=/usr/share/prometheus/console_libraries
+      - --web.console.templates=/usr/share/prometheus/consoles
+      - --web.enable-lifecycle   # POST /-/reload để reload config
+      - --enable-feature=exemplar-storage
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - api-gateway
+    networks:
+      - rbac-network
+
+  # ==================== Grafana ====================
+  grafana:
+    image: grafana/grafana:11.6.1
+    container_name: rbac-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      # Tích hợp Jaeger trace link từ Grafana Explore
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/grafana/dashboards:/etc/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - jaeger
+    networks:
+      - rbac-network
+
 volumes:
   postgres_data:
   redis_data:
   sonarqube_data:
   sonarqube_extensions:
   sonarqube_logs:
+  prometheus_data:
+  grafana_data:
 
 networks:
   rbac-network:

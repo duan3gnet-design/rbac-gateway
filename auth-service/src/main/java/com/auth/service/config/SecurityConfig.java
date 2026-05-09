@@ -54,7 +54,8 @@ public class SecurityConfig {
                                 "/api/auth/validate",
                                 "/api/auth/logout-all",
                                 "/login/oauth2/**",
-                                "/oauth2/**"
+                                "/oauth2/**",
+                                "/actuator/**"
                         ).permitAll()
                         .requestMatchers("/internal/**").authenticated()
                         .anyRequest().authenticated())

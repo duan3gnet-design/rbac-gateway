@@ -4,12 +4,13 @@ import com.api.gateway.admin.ratelimit.RateLimitConfigService;
 import com.api.gateway.config.RateLimitProperties;
 import com.auth.service.dto.ClaimsResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -35,13 +36,25 @@ import java.util.Map;
 @Slf4j
 @Component
 @Order(-99)
-@RequiredArgsConstructor
 public class RateLimitFilter implements HandlerInterceptor {
 
     private final StringRedisTemplate         redisTemplate;
     private final RateLimitProperties         fallbackProperties;
     private final RateLimitConfigService      rateLimitConfigService;
     private final ObjectMapper                objectMapper;
+    private final Counter                     rateLimitExceededCounter;
+
+    public RateLimitFilter(StringRedisTemplate redisTemplate,
+                           RateLimitProperties fallbackProperties,
+                           RateLimitConfigService rateLimitConfigService,
+                           ObjectMapper objectMapper,
+                           @Qualifier("rateLimitExceededCounter") Counter rateLimitExceededCounter) {
+        this.redisTemplate           = redisTemplate;
+        this.fallbackProperties      = fallbackProperties;
+        this.rateLimitConfigService  = rateLimitConfigService;
+        this.objectMapper            = objectMapper;
+        this.rateLimitExceededCounter = rateLimitExceededCounter;
+    }
 
     private static final AntPathMatcher PATH_MATCHER = new AntPathMatcher();
 
@@ -110,6 +123,7 @@ public class RateLimitFilter implements HandlerInterceptor {
             }
 
             log.warn("Rate limit exceeded — identity: {}, path: {}", identity, request.getRequestURI());
+            rateLimitExceededCounter.increment();
             writeTooManyRequests(response, request.getRequestURI(), tokensLeft);
 
         } catch (Exception e) {

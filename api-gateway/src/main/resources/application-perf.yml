@@ -1,9 +1,9 @@
 # application-perf.yml — api-gateway
-# Profile override cho performance test trong Docker
+# Profile override cho performance test và Docker deployment
 
 spring:
   datasource:
-    url: jdbc:postgresql://${DB_HOST:postgres}:${DB_PORT:5432}/${DB_NAME:postgres}
+    url: ${GATEWAY_DB_URL:jdbc:postgresql://postgres:5432/rbac_gateway}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:12345}
     hikari:
@@ -26,6 +26,10 @@ spring:
           max-idle: 16
           max-active: 32
           max-wait: 1s
+
+# ── Tracing ──────────────────────────────────────────────────────────────
+tracing:
+  success-rate: 0.05   # dev: 100%, production nên đặt 0.05 — 0.1
 
 logging:
   level:

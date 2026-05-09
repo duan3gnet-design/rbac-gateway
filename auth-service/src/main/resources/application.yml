@@ -71,10 +71,28 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health, mappings, metrics
   endpoint:
     health:
       show-details: always
+
+  tracing:
+    sampling:
+      probability: 1.0   # 100% — giảm xuống 0.1 ở production
+
+  opentelemetry:
+    resource-attributes:
+      service.name: ${spring.application.name}
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}/v1/traces
+          protocol: http/protobuf
+
+  otlp:
+    metrics:
+      export:
+        enabled: false
 
 logging:
   level:

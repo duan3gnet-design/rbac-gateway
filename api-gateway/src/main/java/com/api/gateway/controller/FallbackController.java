@@ -1,7 +1,9 @@
 package com.api.gateway.controller;
 
+import io.micrometer.core.instrument.Counter;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -17,15 +19,24 @@ import java.util.Map;
 @RequestMapping("/fallback")
 public class FallbackController {
 
+    private final Counter circuitBreakerFallbackCounter;
+
+    public FallbackController(
+            @Qualifier("circuitBreakerFallbackCounter") Counter circuitBreakerFallbackCounter) {
+        this.circuitBreakerFallbackCounter = circuitBreakerFallbackCounter;
+    }
+
     @RequestMapping("/auth")
     public ResponseEntity<Map<String, Object>> authFallback(HttpServletRequest request) {
-        log.info("fallback auth: {}", request.getRequestURI());
+        log.warn("[CircuitBreaker] Fallback triggered for auth-service: {}", request.getRequestURI());
+        circuitBreakerFallbackCounter.increment();
         return buildFallbackResponse("auth-service", request.getRequestURI());
     }
 
     @RequestMapping("/resource")
     public ResponseEntity<Map<String, Object>> resourceFallback(HttpServletRequest request) {
-        log.info("fallback resource: {}", request.getRequestURI());
+        log.warn("[CircuitBreaker] Fallback triggered for resource-service: {}", request.getRequestURI());
+        circuitBreakerFallbackCounter.increment();
         return buildFallbackResponse("resource-service", request.getRequestURI());
     }
 

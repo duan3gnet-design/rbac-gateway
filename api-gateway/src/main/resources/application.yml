@@ -126,23 +126,63 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, gateway, circuitbreakers, circuitbreakerevents, retryevents
+        include: health, gateway, circuitbreakers, circuitbreakerevents, retryevents, prometheus, metrics, info, mappings
+
   endpoint:
     health:
       show-details: always
     gateway:
       enabled: true
+    prometheus:
+      enabled: true
+
   health:
     circuitbreakers:
       enabled: true
+
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms, 100ms, 200ms, 500ms, 1s
+
+  # ==================== TRACING (Micrometer OTel → Jaeger) ====================
+  tracing:
+    sampling:
+      probability: 1.0   # PHẢI là 1.0 — tail-based filtering xảy ra ở TailSamplingExporter
+                         # Nếu đặt < 1.0 ở đây, spans bị drop trước khi đến exporter
+
+  opentelemetry:
+    resource-attributes:
+      service.name: ${spring.application.name}
+
+  otlp:
+    metrics:
+      export:
+        enabled: false
+
+tracing:
+  export:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+  success-rate: 1.0   # dev: 100%, production nên đặt 0.05 — 0.1
+  excluded-paths:
+    - /actuator
+    - /favicon.ico
+    - /eureka
 
 # ==================== LOGGING ====================
 logging:
   level:
     root: INFO
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.cloud.loadbalancer: DEBUG
-    io.github.resilience4j: DEBUG
-    com.api.gateway.route: DEBUG
+    org.springframework.cloud.gateway: WARN
+    org.springframework.cloud.loadbalancer: WARN
+    io.github.resilience4j: WARN
+    com.api.gateway.route: WARN
     com.netflix.discovery: WARN
     com.netflix.eureka: WARN
+    io.opentelemetry: WARN
+    io.micrometer.tracing: WARN #DEBUG

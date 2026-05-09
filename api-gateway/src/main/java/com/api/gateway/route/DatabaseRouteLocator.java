@@ -5,7 +5,6 @@ import com.api.gateway.repository.GatewayRouteRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
@@ -27,35 +26,54 @@ import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFuncti
 /**
  * Load routes từ PostgreSQL và expose qua RouterFunction (Gateway MVC).
  *
- * <h3>Circuit Breaker + RestClient flow:</h3>
+ * <h3>Trace propagation flow:</h3>
  * <pre>
- *   Request → cb.executeCheckedSupplier(...)
- *     │
- *     ├─ CB CLOSED/HALF_OPEN → http().handle(req) → RestClient proxy
- *     │     ├─ downstream 2xx/3xx → ServerResponse trả về → CB ghi SUCCESS
- *     │     ├─ downstream 4xx     → HttpClientErrorException → CB ghi SUCCESS
- *     │     │                        (4xx = client lỗi, không phải service lỗi)
- *     │     ├─ downstream 5xx     → HttpServerErrorException → CB ghi FAILURE
- *     │     └─ connection refused → ResourceAccessException  → CB ghi FAILURE
- *     │
- *     └─ CB OPEN → CallNotPermittedException (không gọi downstream)
- *
- *   on HttpServerErrorException / ResourceAccessException / CallNotPermittedException
- *     → buildFallbackResponse() → 503 JSON
+ *   Client Request
+ *     → Spring MVC auto-creates root span (instrumented bởi spring-boot-starter-opentelemetry)
+ *     → JwtAuthenticationFilter (interceptor — trong cùng span)
+ *     → DatabaseRouteLocator.handle()
+ *         → forwardHeaders() — copy X-User-* + W3C traceparent/tracestate headers
+ *         → http().handle(req)
+ *             → Gateway MVC dùng RestClient.Builder bean (đã có ObservationRegistry)
+ *             → tạo child span, inject traceparent vào outgoing request tự động
+ *             → downstream service nhận traceparent → tiếp tục trace chain
+ *     → Jaeger thấy: gateway-span → downstream-span (parent-child)
  * </pre>
+ *
+ * <p><b>Lưu ý về RestClient:</b> Gateway MVC tự dùng {@code RestClient.Builder} bean
+ * trong context. Để tracing hoạt động, bean đó phải được cấu hình với
+ * {@code ObservationRegistry} — xem {@link com.api.gateway.config.GatewayConfig}.</p>
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class DatabaseRouteLocator {
 
-    private final GatewayRouteRepository routeRepository;
-    private final ObjectMapper           objectMapper;
-    private final LoadBalancerClient     loadBalancerClient;
-    private final CircuitBreakerRegistry circuitBreakerRegistry;
+    // W3C Trace Context headers (OTel)
+    private static final String TRACEPARENT = "traceparent";
+    private static final String TRACESTATE  = "tracestate";
+    // B3 headers (backward compat với Brave / legacy services)
+    private static final String B3_SINGLE   = "b3";
+    private static final String B3_TRACE_ID = "X-B3-TraceId";
+    private static final String B3_SPAN_ID  = "X-B3-SpanId";
+    private static final String B3_SAMPLED  = "X-B3-Sampled";
+
+    private final GatewayRouteRepository  routeRepository;
+    private final ObjectMapper            objectMapper;
+    private final LoadBalancerClient      loadBalancerClient;
+    private final CircuitBreakerRegistry  circuitBreakerRegistry;
 
     private final AtomicReference<RouterFunction<ServerResponse>> routerCache =
             new AtomicReference<>(null);
+
+    public DatabaseRouteLocator(GatewayRouteRepository routeRepository,
+                                ObjectMapper objectMapper,
+                                LoadBalancerClient loadBalancerClient,
+                                CircuitBreakerRegistry circuitBreakerRegistry) {
+        this.routeRepository       = routeRepository;
+        this.objectMapper          = objectMapper;
+        this.loadBalancerClient    = loadBalancerClient;
+        this.circuitBreakerRegistry = circuitBreakerRegistry;
+    }
 
     // ─── Public API ──────────────────────────────────────────────────────────
 
@@ -95,15 +113,16 @@ public class DatabaseRouteLocator {
 
     private RouterFunction<ServerResponse> buildSingleRoute(GatewayRouteEntity entity) {
         String configuredUri = entity.uri();
-        String pathPattern = extractPathPattern(entity.predicates(), entity.id());
-        String cbName = extractCircuitBreakerName(entity.filters(), entity.id(), "name");
-        String fallbackUri = extractCircuitBreakerName(entity.filters(), entity.id(), "fallbackUri");
-        String statusCodes = extractCircuitBreakerName(entity.filters(), entity.id(), "statusCodes");
+        String pathPattern   = extractPathPattern(entity.predicates(), entity.id());
+        String cbName        = extractCircuitBreakerArg(entity.filters(), entity.id(), "name");
+        String fallbackUri   = extractCircuitBreakerArg(entity.filters(), entity.id(), "fallbackUri");
+        String statusCodes   = extractCircuitBreakerArg(entity.filters(), entity.id(), "statusCodes");
+
         RouterFunctions.Builder route = GatewayRouterFunctions.route(entity.id())
-                .GET(pathPattern, req -> handle(req, configuredUri))
-                .POST(pathPattern, req -> handle(req, configuredUri))
-                .PUT(pathPattern, req -> handle(req, configuredUri))
-                .PATCH(pathPattern, req -> handle(req, configuredUri))
+                .GET(pathPattern,    req -> handle(req, configuredUri))
+                .POST(pathPattern,   req -> handle(req, configuredUri))
+                .PUT(pathPattern,    req -> handle(req, configuredUri))
+                .PATCH(pathPattern,  req -> handle(req, configuredUri))
                 .DELETE(pathPattern, req -> handle(req, configuredUri));
 
         if (cbName != null && fallbackUri != null && statusCodes != null) {
@@ -119,6 +138,9 @@ public class DatabaseRouteLocator {
     // ─── Request Handling ────────────────────────────────────────────────────
 
     private ServerResponse handle(ServerRequest request, String configuredUri) throws Exception {
+        // http() không nhận tham số — Gateway MVC tự pick up RestClient.Builder bean
+        // từ ApplicationContext. Bean đó đã được gắn ObservationRegistry trong GatewayConfig
+        // → tự động tạo child span + inject traceparent header vào outgoing request.
         return http().handle(resolveUri(forwardHeaders(request), configuredUri));
     }
 
@@ -140,17 +162,49 @@ public class DatabaseRouteLocator {
 
     // ─── Header Forwarding ───────────────────────────────────────────────────
 
+    /**
+     * Copy toàn bộ headers cần thiết sang outgoing request:
+     * <ul>
+     *   <li>X-User-* — identity context cho downstream service</li>
+     *   <li>W3C traceparent / tracestate — OTel trace propagation (safety net,
+     *       RestClient với ObservationRegistry đã inject tự động)</li>
+     *   <li>B3 headers — backward compat với Brave/Zipkin instrumented services</li>
+     * </ul>
+     */
     private ServerRequest forwardHeaders(ServerRequest request) {
-        var from = ServerRequest.from(request);
-        request.attribute("X-User-Name").ifPresent(v -> from.header("X-User-Name", v.toString()));
-        request.attribute("X-User-Roles").ifPresent(v -> from.header("X-User-Roles", v.toString()));
-        request.attribute("X-User-Permissions").ifPresent(v -> from.header("X-User-Permissions", v.toString()));
-        return from.build();
+        var builder = ServerRequest.from(request);
+
+        // ── Identity headers ─────────────────────────────────────────────────
+        request.attribute("X-User-Name")
+               .ifPresent(v -> builder.header("X-User-Name", v.toString()));
+        request.attribute("X-User-Roles")
+               .ifPresent(v -> builder.header("X-User-Roles", v.toString()));
+        request.attribute("X-User-Permissions")
+               .ifPresent(v -> builder.header("X-User-Permissions", v.toString()));
+
+        // ── W3C Trace Context (OTel) ─────────────────────────────────────────
+        copyHeader(request, builder, TRACEPARENT);
+        copyHeader(request, builder, TRACESTATE);
+
+        // ── B3 (Brave / legacy services) ─────────────────────────────────────
+        copyHeader(request, builder, B3_SINGLE);
+        copyHeader(request, builder, B3_TRACE_ID);
+        copyHeader(request, builder, B3_SPAN_ID);
+        copyHeader(request, builder, B3_SAMPLED);
+
+        return builder.build();
+    }
+
+    private void copyHeader(ServerRequest source, ServerRequest.Builder target, String headerName) {
+        List<String> values = source.headers().header(headerName);
+        if (!values.isEmpty()) {
+            target.header(headerName, values.toArray(String[]::new));
+        }
     }
 
     // ─── Parsing ─────────────────────────────────────────────────────────────
 
-    private String extractCircuitBreakerName(String filtersJson, String routeId, String argName) {
+    private String extractCircuitBreakerArg(String filtersJson, String routeId, String argName) {
         try {
             if (filtersJson == null || filtersJson.isBlank() || "[]".equals(filtersJson.trim())) {
                 return null;
@@ -192,14 +246,5 @@ public class DatabaseRouteLocator {
             log.warn("Failed to parse predicates for route [{}]: {}", routeId, e.getMessage());
         }
         return "/**";
-    }
-
-    private String cbNameToServiceName(String cbName) {
-        if (cbName == null) return "unknown";
-        return cbName
-                .replaceAll("CB$", "")
-                .replaceAll("([A-Z])", "-$1")
-                .toLowerCase()
-                .replaceAll("^-", "");
     }
 }
