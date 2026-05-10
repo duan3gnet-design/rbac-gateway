@@ -2,11 +2,10 @@ package com.api.gateway.admin.route;
 
 import com.api.gateway.entity.GatewayRouteEntity;
 import com.api.gateway.repository.GatewayRouteRepository;
-import com.api.gateway.route.RouteRefreshEvent;
+import com.api.gateway.route.RouteRefreshPublisher;
 import com.api.gateway.validator.RbacPermissionChecker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,12 +20,25 @@ import java.util.List;
  *
  * <p>Sau mỗi thao tác write:</p>
  * <ul>
- *   <li>Publish {@link RouteRefreshEvent} → {@code DatabaseRouteLocator} reload routes
- *       + {@code RbacPermissionChecker} invalidate rules cache.</li>
- *   <li>{@code assignPermissions()} gọi thêm {@code rbacChecker.invalidateCache()}
- *       vì permission mapping thay đổi nhưng route structure không đổi
- *       (không muốn reload toàn bộ RouterFunction chỉ vì assign permission).</li>
+ *   <li>Gọi {@link RouteRefreshPublisher#publish(String, String)} →
+ *       publish message lên Redis Pub/Sub channel →
+ *       <strong>tất cả nodes</strong> (kể cả node hiện tại) nhận message
+ *       → mỗi node tự invalidate local cache của
+ *       {@code DatabaseRouteLocator} và {@code RbacPermissionChecker}.</li>
+ *   <li>{@code assignPermissions()} gọi {@code rbacChecker.invalidateCache()}
+ *       để đảm bảo rules cache stale ngay lập tức trên node hiện tại,
+ *       đồng thời publish Redis event để propagate sang các node khác.</li>
  * </ul>
+ *
+ * <h3>Multi-node flow</h3>
+ * <pre>
+ *   Admin API → AdminRouteService.publishRefresh()
+ *                   → RouteRefreshPublisher → Redis "gateway:route-refresh"
+ *                       → RouteRefreshSubscriber (on EVERY node)
+ *                           → Spring RouteRefreshEvent (local)
+ *                               → DatabaseRouteLocator.onRefreshRoutes()
+ *                               → RbacPermissionChecker.onRefreshRoutes()
+ * </pre>
  */
 @Slf4j
 @Service
@@ -36,7 +48,7 @@ public class AdminRouteService {
     private final GatewayRouteRepository    routeRepo;
     private final RoutePermissionRepository permissionRepo;
     private final PermissionQueryRepository permQueryRepo;
-    private final ApplicationEventPublisher eventPublisher;
+    private final RouteRefreshPublisher     refreshPublisher;
     private final RbacPermissionChecker     rbacChecker;
 
     // ─── Queries ────────────────────────────────────────────────────────────
@@ -129,10 +141,12 @@ public class AdminRouteService {
         permissionRepo.deleteByRouteId(routeId);
         permissionIds.forEach(pid -> permissionRepo.insert(routeId, pid));
 
-        // Permission mapping thay đổi → rules view đã stale.
-        // Dùng invalidateCache() thay vì publishRefresh() để tránh
-        // reload toàn bộ RouterFunction (route structure không đổi).
+        // Permission mapping thay đổi → broadcast sang tất cả nodes.
+        // Cũng invalidate local cache ngay lập tức (trước khi Redis message
+        // được nhận lại qua subscriber) để đảm bảo node hiện tại phản hồi
+        // đúng với request tiếp theo.
         rbacChecker.invalidateCache();
+        publishRefresh("assign-permissions", routeId);
 
         return permissionRepo.findPermissionIdsByRouteId(routeId);
     }
@@ -148,11 +162,14 @@ public class AdminRouteService {
         );
     }
 
+    /**
+     * Publish refresh message lên Redis → broadcast sang tất cả nodes.
+     * Node hiện tại cũng sẽ nhận lại message này qua
+     * {@link com.api.gateway.route.RouteRefreshSubscriber}.
+     */
     private void publishRefresh(String action, String routeId) {
-        log.info("Publishing RouteRefreshEvent after [{}] on route [{}]", action, routeId);
-        // RouteRefreshEvent listener trong DatabaseRouteLocator VÀ
-        // RbacPermissionChecker đều lắng nghe event này →
-        // cả route cache lẫn rules cache đều bị invalidate cùng lúc.
-        eventPublisher.publishEvent(new RouteRefreshEvent(this));
+        log.info("[AdminRouteService] Broadcasting route refresh: action='{}', route='{}'",
+                action, routeId);
+        refreshPublisher.publish(action, routeId);
     }
 }

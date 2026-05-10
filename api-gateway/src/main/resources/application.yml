@@ -4,6 +4,7 @@ server:
 spring:
   application:
     name: api-gateway
+    instance-id: ${spring.application.name}:${random.uuid}
   main:
     web-application-type: servlet   # MVC thay WebFlux
 
@@ -80,6 +81,13 @@ eureka:
 # ==================== JWT ====================
 jwt:
   secret: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=
+
+# ==================== GATEWAY ROUTE REFRESH ====================
+gateway:
+  route-refresh:
+    # Redis Pub/Sub channel dùng để broadcast cache invalidation sang tất cả nodes.
+    # Override nếu cần tách channel theo môi trường (e.g. gateway:route-refresh:staging).
+    channel: gateway:route-refresh
 
 # ==================== RATE LIMIT ====================
 rate-limit:
@@ -165,14 +173,14 @@ management:
         enabled: false
 
 tracing:
-  export:
-    otlp:
-      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
-  success-rate: 1.0   # dev: 100%, production nên đặt 0.05 — 0.1
+  success-rate: 1.0
   excluded-paths:
     - /actuator
     - /favicon.ico
     - /eureka
+  export:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
 
 # ==================== LOGGING ====================
 logging:

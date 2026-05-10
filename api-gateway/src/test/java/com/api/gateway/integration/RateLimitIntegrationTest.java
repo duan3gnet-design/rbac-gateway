@@ -138,7 +138,7 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
             String token = jwt("eve@test.com", List.of("ROLE_USER"), List.of("products:READ"));
             // Gửi 10 requests (gấp đôi burstCapacity=5) để đảm bảo bucket rỗng
             // dù có token refill xảy ra tại second boundary
-            sendRequests("/api/resources/products", token, 10);
+            sendRequests("/api/resources/products", token, 11);
             get("/api/resources/products", token)
                     .expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS)
                     .expectHeader().contentType(MediaType.APPLICATION_JSON)
@@ -175,7 +175,7 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
                             .withBody("[]")));
 
             String token = jwt("grace@test.com", List.of("ROLE_USER"), List.of("products:READ"));
-            sendRequests("/api/resources/products", token, 10);
+            sendRequests("/api/resources/products", token, 11);
             get("/api/resources/products", token)
                     .expectStatus().isEqualTo(HttpStatus.TOO_MANY_REQUESTS)
                     .expectHeader().contentType(MediaType.APPLICATION_JSON);

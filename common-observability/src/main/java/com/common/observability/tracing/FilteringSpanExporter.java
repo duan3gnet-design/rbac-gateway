@@ -8,8 +8,6 @@ import io.opentelemetry.sdk.trace.export.SpanExporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Collection;
 import java.util.List;
 import java.util.random.RandomGenerator;
@@ -29,7 +27,7 @@ public class FilteringSpanExporter implements SpanExporter {
     private static final Logger log = LoggerFactory.getLogger(FilteringSpanExporter.class);
 
     private static final AttributeKey<String>   HTTP_STATUS = AttributeKey.stringKey("status");
-    private static final AttributeKey<String> URL_PATH    = AttributeKey.stringKey("http.url");
+    private static final AttributeKey<String> URL_PATH    = AttributeKey.stringKey("uri");
 
     private final SpanExporter    delegate;
     private final double          successRate;
@@ -61,9 +59,9 @@ public class FilteringSpanExporter implements SpanExporter {
     // ── filter logic ─────────────────────────────────────────────────────────
 
     private boolean shouldExport(SpanData span) {
-        String path = getPath(span);
+        if (span.getSpanContext() != null) return true;
 
-        if (isExcluded(path)) return false;
+        if (isExcluded(getPath(span))) return false;
 
         if (span.getStatus().getStatusCode() == StatusCode.ERROR) return true;
 
@@ -76,21 +74,11 @@ public class FilteringSpanExporter implements SpanExporter {
     }
 
     private String getPath(SpanData span) {
-        String url = span.getAttributes().get(URL_PATH);
-
-        if (url != null) {
-            try {
-                return new URI(url).getPath();
-            } catch (URISyntaxException e) {
-                return null;
-            }
-        }
-
-        return null;
+        return span.getAttributes().get(URL_PATH);
     }
 
     private boolean isExcluded(String path) {
-        if (path == null) return false;
+        if (path == null || path.equals("none")) return true;
         return excludedPaths.stream().anyMatch(path::startsWith);
     }
 }

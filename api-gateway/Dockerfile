@@ -19,20 +19,22 @@ COPY api-gateway/pom.xml       ./api-gateway/
 COPY auth-service/pom.xml      ./auth-service/
 COPY resource-service/pom.xml  ./resource-service/
 COPY migration/pom.xml         ./migration/
+COPY common-observability/pom.xml     ./common-observability/
 # eureka-server được khai báo trong root pom.xml nên phải có pom con
 # để Maven reactor không báo "Child module does not exist"
 COPY eureka-server/pom.xml     ./eureka-server/
 
-RUN mvn dependency:go-offline -pl api-gateway,auth-service -am -q
+RUN mvn dependency:go-offline -pl api-gateway,auth-service,common-observability -am -q
 
 # Copy source của các module cần thiết
 COPY auth-service/src      ./auth-service/src
 COPY api-gateway/src       ./api-gateway/src
 COPY resource-service/src  ./resource-service/src
 COPY migration/src         ./migration/src
+COPY common-observability/src         ./common-observability/src
 
 # Build chỉ api-gateway và auth-service (dependency)
-RUN mvn package -pl api-gateway,auth-service -am -DskipTests -q
+RUN mvn package -pl api-gateway,auth-service,common-observability -am -DskipTests -q
 
 # -------------------------------------------------------------
 # Stage 2: Extract Spring Boot layers
@@ -46,7 +48,7 @@ RUN java -Djarmode=layertools -jar app.jar extract
 # -------------------------------------------------------------
 # Stage 3: Runtime — JRE only
 # -------------------------------------------------------------
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jdk-alpine
 
 RUN apk add --no-cache curl
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup

@@ -16,13 +16,15 @@ COPY auth-service/pom.xml      ./auth-service/
 COPY api-gateway/pom.xml       ./api-gateway/
 COPY resource-service/pom.xml  ./resource-service/
 COPY migration/pom.xml         ./migration/
+COPY common-observability/pom.xml     ./common-observability/
 COPY eureka-server/pom.xml     ./eureka-server/
 
-RUN mvn dependency:go-offline -pl resource-service -am -q
+RUN mvn dependency:go-offline -pl resource-service,common-observability -am -q
 
 COPY resource-service/src ./resource-service/src
+COPY common-observability/src         ./common-observability/src
 
-RUN mvn package -pl resource-service -am -DskipTests -q
+RUN mvn package -pl resource-service,common-observability -am -DskipTests -q
 
 # -------------------------------------------------------------
 # Stage 2: Extract Spring Boot layers
@@ -36,7 +38,7 @@ RUN java -Djarmode=layertools -jar app.jar extract
 # -------------------------------------------------------------
 # Stage 3: Runtime — JRE only
 # -------------------------------------------------------------
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jdk-alpine
 
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
