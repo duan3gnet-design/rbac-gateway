@@ -44,18 +44,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
-        <!-- ─── OBSERVABILITY ─────────────────────────────────────────────── -->
+        <!-- ─── OBSERVABILITY + EUREKA (dùng chung từ common-observability) ──────── -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-opentelemetry</artifactId>
-        </dependency>
-        <!--
-            Eureka Client — đăng ký resource-service vào Service Registry.
-            Gateway sẽ resolve "resource-service" → instance URL tự động.
-        -->
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+            <groupId>org.api.gateway</groupId>
+            <artifactId>common-observability</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

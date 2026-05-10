@@ -14,6 +14,9 @@ app:
   auth-service:
     url: ${AUTH_SERVICE_URL:http://auth-service:8081}
 
+tracing:
+  success-rate: 0.01
+
 logging:
   level:
     root: WARN

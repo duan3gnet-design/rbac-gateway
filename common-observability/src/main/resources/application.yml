@@ -1,0 +1,53 @@
+# common-observability default config
+# Các service override lại trong application.yml của mình
+
+tracing:
+  success-rate: 1.0
+  excluded-paths:
+    - /actuator
+    - /favicon.ico
+    - /eureka
+  export:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0   # PHẢI là 1.0 — tail-based filtering xảy ra ở FilteringSpanExporter
+
+  endpoints:
+    web:
+      exposure:
+        include: health, prometheus, metrics, info
+
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true
+
+  metrics:
+    tags:
+      application: ${spring.application.name:unknown}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+  otlp:
+    metrics:
+      export:
+        enabled: false
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    fetch-registry: true
+    register-with-eureka: true
+    registry-fetch-interval-seconds: 10
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+    health-check-url-path: /actuator/health

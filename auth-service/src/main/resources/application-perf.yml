@@ -16,6 +16,9 @@ spring:
   jpa:
     show-sql: false
 
+tracing:
+  success-rate: 0.01
+
 logging:
   level:
     root: WARN

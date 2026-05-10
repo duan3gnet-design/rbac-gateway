@@ -29,7 +29,7 @@ spring:
 
 # ── Tracing ──────────────────────────────────────────────────────────────
 tracing:
-  success-rate: 0.05   # dev: 100%, production nên đặt 0.05 — 0.1
+  success-rate: 0.01   # dev: 100%, production nên đặt 0.05 — 0.1
 
 logging:
   level:

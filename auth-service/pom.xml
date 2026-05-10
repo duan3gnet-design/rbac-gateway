@@ -41,13 +41,21 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
-        <!--
-            Eureka Client — đăng ký auth-service vào Service Registry.
-            Gateway sẽ resolve "auth-service" → instance URL tự động.
-        -->
         <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-cache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jackson</artifactId>
         </dependency>
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
@@ -84,31 +92,12 @@
             <groupId>jakarta.validation</groupId>
             <artifactId>jakarta.validation-api</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-oauth2-client</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-cache</artifactId>
-        </dependency>
 
-        <!-- ─── OBSERVABILITY ─────────────────────────────────────────────── -->
-        <!--
-            Spring Boot 4 OTel starter — tự động nhận traceparent header từ gateway,
-            tạo child span, gửi spans đến Jaeger qua OTLP HTTP.
-        -->
+        <!-- ─── OBSERVABILITY + EUREKA (dùng chung từ common-observability) ─ -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-opentelemetry</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-jackson</artifactId>
+            <groupId>org.api.gateway</groupId>
+            <artifactId>common-observability</artifactId>
+            <version>${project.version}</version>
         </dependency>
 
         <!-- ─── TEST ──────────────────────────────────────────────────────── -->
@@ -144,14 +133,6 @@
 
     <build>
         <plugins>
-            <!--
-                spring-boot-maven-plugin với classifier=exec:
-                - Tạo 2 artifact:
-                    auth-service-1.0-SNAPSHOT.jar       → plain jar (dùng bởi api-gateway dependency)
-                    auth-service-1.0-SNAPSHOT-exec.jar  → executable fat jar (dùng bởi Dockerfile)
-                - Nếu KHÔNG có classifier, plugin sẽ repackage đè lên plain jar
-                  → api-gateway mất dependency compile → build fail
-            -->
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -159,12 +140,10 @@
                     <classifier>exec</classifier>
                 </configuration>
             </plugin>
-
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
