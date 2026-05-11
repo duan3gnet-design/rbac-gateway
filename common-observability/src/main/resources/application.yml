@@ -10,6 +10,17 @@ tracing:
   export:
     otlp:
       endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+  grouping:
+    # Bật GroupedTraceSpanProcessor — buffer spans theo traceId,
+    # flush cả nhóm khi trace hoàn chỉnh (in-flight counter về 0).
+    # Set false để fallback về BatchSpanProcessor mặc định của OTel.
+    enabled: true
+    # Trace tồn tại quá TTL sẽ bị force-flush (tránh memory leak
+    # khi span bị drop hoặc downstream không bao giờ trả về).
+    ttl: 30s
+    # Số traces đồng thời tối đa trong bộ nhớ.
+    # Vượt quá → evict stale traces trước khi nhận trace mới.
+    max-traces-in-flight: 10000
 
 management:
   tracing:

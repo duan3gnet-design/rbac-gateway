@@ -173,11 +173,12 @@ management:
         enabled: false
 
 tracing:
-  success-rate: 1.0
+  success-rate: 0.1
   excluded-paths:
     - /actuator
     - /favicon.ico
     - /eureka
+    - /fallback
   export:
     otlp:
       endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}

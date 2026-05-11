@@ -44,8 +44,11 @@ public class FilteringSpanExporter implements SpanExporter {
 
     @Override
     public CompletableResultCode export(Collection<SpanData> spans) {
-        var toExport = spans.stream().filter(this::shouldExport).toList();
+        var traceIds = spans.stream().filter(this::shouldExport).map(SpanData::getTraceId).toList();
+        var toExport = spans.stream()
+                .filter(spanData -> traceIds.contains(spanData.getTraceId())).toList();
         log.debug("[TailSampling] {}/{} spans passed", toExport.size(), spans.size());
+        log.info("[TailSampling] {}/{} spans passed/{} traceIds", toExport.size(), spans.size(), traceIds.size());
         if (toExport.isEmpty()) return CompletableResultCode.ofSuccess();
         return delegate.export(toExport);
     }
@@ -59,8 +62,6 @@ public class FilteringSpanExporter implements SpanExporter {
     // ── filter logic ─────────────────────────────────────────────────────────
 
     private boolean shouldExport(SpanData span) {
-        if (span.getSpanContext() != null) return true;
-
         if (isExcluded(getPath(span))) return false;
 
         if (span.getStatus().getStatusCode() == StatusCode.ERROR) return true;
@@ -69,6 +70,8 @@ public class FilteringSpanExporter implements SpanExporter {
         if (status != null && Long.parseLong(status) >= 400) {
             return true;
         }
+
+        if (span.getParentSpanId() == null) return false;
 
         return successRate >= 1.0 || rng.nextDouble() < successRate;
     }

@@ -42,3 +42,7 @@ build/
 
 ### Environment Variables ###
 .env
+
+### k6 Performance Test Results ###
+performance-test/k6/results/
+performance-test/k6/**/*.json
