@@ -1,6 +1,7 @@
 package com.common.observability.tracing;
 
 import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.SpanId;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.common.CompletableResultCode;
@@ -15,7 +16,6 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -79,14 +79,6 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
     private static final AttributeKey<String> HTTP_STATUS = AttributeKey.stringKey("status");
     private static final AttributeKey<String> URL_PATH    = AttributeKey.stringKey("uri");
 
-    /** Trace tồn tại quá TTL sẽ bị evict (force-flush spans đã có). */
-    private static final Duration DEFAULT_TTL = Duration.ofSeconds(30);
-
-    /** Số traces đồng thời tối đa. Vượt quá → warn + evict oldest. */
-    private static final int DEFAULT_MAX_TRACES = 10_000;
-
-    private static final double DEFAULT_SUCCESS_RATE = 1.0;
-    private static final List<String> DEFAULT_EXCLUDED_PATHS = new ArrayList<>();
     /** Chu kỳ chạy TTL eviction job. */
     private static final Duration EVICTION_INTERVAL = Duration.ofSeconds(30);
 
@@ -103,10 +95,6 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
     private final RandomGenerator rng = RandomGenerator.getDefault();
 
     // ── Constructors ─────────────────────────────────────────────────────────
-
-    public GroupedTraceSpanProcessor(BatchSpanProcessor delegate) {
-        this(delegate, DEFAULT_TTL, DEFAULT_MAX_TRACES, 1.0, new ArrayList<>());
-    }
 
     public GroupedTraceSpanProcessor(BatchSpanProcessor delegate, Duration ttl, int maxTracesInFlight,
                                      double successRate,
@@ -185,7 +173,7 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
 
         if (remaining <= 0) {
             if (traceStates.remove(traceId, state)) {
-                flushTrace(traceId, state, "complete");
+                flushTrace(traceId, state);
             }
         }
     }
@@ -203,7 +191,7 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
         log.info("[GroupedTraceSpanProcessor] forceFlush — {} traces đang buffer", traceStates.size());
         traceStates.forEach((traceId, state) -> {
             if (traceStates.remove(traceId, state)) {
-                flushTrace(traceId, state, "force-flush");
+                flushTrace(traceId, state);
             }
         });
         return delegate.forceFlush();
@@ -232,7 +220,7 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
         traceStates.forEach((traceId, state) -> {
             if (state.createdAt.isBefore(cutoff)) {
                 if (traceStates.remove(traceId, state)) {
-                    flushTrace(traceId, state, "ttl-evict");
+                    flushTrace(traceId, state);
                     evicted[0]++;
                 }
             }
@@ -249,26 +237,26 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
      * Guard bởi {@code state.flushed} CAS để tránh double-export
      * khi onEnd và eviction thread race nhau.
      */
-    private void flushTrace(String traceId, TraceState state, String reason) {
+    private void flushTrace(String traceId, TraceState state) {
         if (!state.markFlushed()) {
             return; // đã được flush bởi thread khác
         }
 
         try {
             List<ReadableSpan> spans = List.copyOf(state.buffer);
+
+            if (isExcluded(spans)) return;
+
             boolean shouldExport = spans.stream().anyMatch(span -> shouldExport(span.toSpanData()));
 
             shouldExport = shouldExport || successRate >= 1.0 || rng.nextDouble() < successRate;
-            log.info("shouldExport {} spans: {}", spans.size(), shouldExport);
-            if (!spans.isEmpty() && shouldExport) spans.forEach(delegate::onEnd);
+            if (shouldExport) spans.forEach(delegate::onEnd);
         } catch (Exception e) {
             log.error("[GroupedTraceSpanProcessor] export lỗi traceId={}: {}", traceId, e.getMessage());
         }
     }
 
     private boolean shouldExport(SpanData span) {
-        if (isExcluded(getPath(span))) return false;
-
         if (span.getStatus().getStatusCode() == StatusCode.ERROR) return true;
 
         String status = span.getAttributes().get(HTTP_STATUS);
@@ -280,9 +268,14 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
         return span.getAttributes().get(URL_PATH);
     }
 
-    private boolean isExcluded(String path) {
-        if (path == null || path.equals("none")) return false;
-        return excludedPaths.stream().anyMatch(path::startsWith);
+    private boolean isExcluded(List<ReadableSpan> spans) {
+        return spans.stream().anyMatch(span -> {
+            String path = getPath(span.toSpanData());
+
+            if (!SpanId.getInvalid().equals(span.toSpanData().getParentSpanId())) return false;
+            if (path == null || path.equals("none")) return true;
+            return excludedPaths.stream().anyMatch(path::startsWith);
+        });
     }
     // ── Inner classes ────────────────────────────────────────────────────────
 

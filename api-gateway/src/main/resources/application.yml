@@ -178,7 +178,6 @@ tracing:
     - /actuator
     - /favicon.ico
     - /eureka
-    - /fallback
   export:
     otlp:
       endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}

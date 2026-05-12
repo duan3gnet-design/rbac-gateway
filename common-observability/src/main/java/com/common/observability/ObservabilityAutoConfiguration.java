@@ -4,13 +4,17 @@ import com.common.observability.tracing.FilteringSpanExporter;
 import com.common.observability.tracing.GroupedTraceSpanProcessor;
 import com.common.observability.tracing.TracingProperties;
 import io.micrometer.observation.ObservationRegistry;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
+import io.opentelemetry.sdk.resources.Resource;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.SpanProcessor;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -62,6 +66,9 @@ public class ObservabilityAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(ObservabilityAutoConfiguration.class);
 
+    @Value("${spring.application.name:unknown-service}")
+    private String serviceName;
+
     // ── SpanExporter (tail-based filtering) ─────────────────────────────────
 
     /**
@@ -105,7 +112,7 @@ public class ObservabilityAutoConfiguration {
     @Bean("groupedTraceSpanProcessor")
     @ConditionalOnMissingBean(name = "groupedTraceSpanProcessor")
     @ConditionalOnProperty(name = "tracing.grouping.enabled", havingValue = "true", matchIfMissing = true)
-    public SpanProcessor groupedTraceSpanProcessor(
+    public GroupedTraceSpanProcessor groupedTraceSpanProcessor(
             SpanExporter spanExporter,
             TracingProperties props) {
 
@@ -121,6 +128,19 @@ public class ObservabilityAutoConfiguration {
                 props.successRate(),
                 props.excludedPaths()
         );
+    }
+
+    @Bean
+    public SdkTracerProvider sdkTracerProvider(GroupedTraceSpanProcessor groupedTraceSpanProcessor) {
+        Resource serviceResource = Resource.getDefault()
+                .merge(Resource.create(Attributes.of(
+                        AttributeKey.stringKey("service.name"), serviceName
+                )));
+
+        return SdkTracerProvider.builder()
+                .setResource(serviceResource)
+                .addSpanProcessor(groupedTraceSpanProcessor)
+                .build();
     }
 
     // ── RestClient ───────────────────────────────────────────────────────────
