@@ -83,7 +83,7 @@ public class ObservabilityAutoConfiguration {
         log.info("[Observability] FilteringSpanExporter → {} | errors=100%, success={}%, excluded={}",
                 endpoint, (int) (props.successRate() * 100), props.excludedPaths());
 
-        return new FilteringSpanExporter(otlpExporter, props.successRate(), props.excludedPaths());
+        return new FilteringSpanExporter(otlpExporter);
     }
 
     // ── GroupedTraceSpanProcessor ────────────────────────────────────────────
@@ -117,7 +117,9 @@ public class ObservabilityAutoConfiguration {
         return new GroupedTraceSpanProcessor(
                 batchProcessor,
                 grouping.ttl(),
-                grouping.maxTracesInFlight()
+                grouping.maxTracesInFlight(),
+                props.successRate(),
+                props.excludedPaths()
         );
     }
 

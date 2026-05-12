@@ -32,3 +32,10 @@ scrape_configs:
   #   metrics_path: /actuator/prometheus
   #   static_configs:
   #     - targets: [ resource-service:8082 ]
+
+  # ── InfluxDB (k6 metrics — chỉ có khi chạy profile perf) ────────────────
+  - job_name: influxdb
+    metrics_path: /metrics
+    scrape_interval: 5s
+    static_configs:
+      - targets: [ influxdb:8086 ]

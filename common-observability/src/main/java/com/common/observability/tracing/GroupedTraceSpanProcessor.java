@@ -1,22 +1,25 @@
 package com.common.observability.tracing;
 
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.trace.ReadWriteSpan;
 import io.opentelemetry.sdk.trace.ReadableSpan;
 import io.opentelemetry.sdk.trace.SpanProcessor;
+import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Queue;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.random.RandomGenerator;
 
 /**
  * GroupedTraceSpanProcessor — gom tất cả spans của cùng một trace lại
@@ -73,12 +76,17 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
 
     // ── Config defaults ──────────────────────────────────────────────────────
 
+    private static final AttributeKey<String> HTTP_STATUS = AttributeKey.stringKey("status");
+    private static final AttributeKey<String> URL_PATH    = AttributeKey.stringKey("uri");
+
     /** Trace tồn tại quá TTL sẽ bị evict (force-flush spans đã có). */
     private static final Duration DEFAULT_TTL = Duration.ofSeconds(30);
 
     /** Số traces đồng thời tối đa. Vượt quá → warn + evict oldest. */
     private static final int DEFAULT_MAX_TRACES = 10_000;
 
+    private static final double DEFAULT_SUCCESS_RATE = 1.0;
+    private static final List<String> DEFAULT_EXCLUDED_PATHS = new ArrayList<>();
     /** Chu kỳ chạy TTL eviction job. */
     private static final Duration EVICTION_INTERVAL = Duration.ofSeconds(30);
 
@@ -90,16 +98,24 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
     private final ConcurrentHashMap<String, TraceState> traceStates = new ConcurrentHashMap<>();
     private final ScheduledExecutorService       evictionScheduler;
 
+    private final double          successRate;
+    private final List<String>    excludedPaths;
+    private final RandomGenerator rng = RandomGenerator.getDefault();
+
     // ── Constructors ─────────────────────────────────────────────────────────
 
     public GroupedTraceSpanProcessor(BatchSpanProcessor delegate) {
-        this(delegate, DEFAULT_TTL, DEFAULT_MAX_TRACES);
+        this(delegate, DEFAULT_TTL, DEFAULT_MAX_TRACES, 1.0, new ArrayList<>());
     }
 
-    public GroupedTraceSpanProcessor(BatchSpanProcessor delegate, Duration ttl, int maxTracesInFlight) {
+    public GroupedTraceSpanProcessor(BatchSpanProcessor delegate, Duration ttl, int maxTracesInFlight,
+                                     double successRate,
+                                     List<String> excludedPaths) {
         this.delegate          = delegate;
         this.ttl               = ttl;
         this.maxTracesInFlight = maxTracesInFlight;
+        this.successRate = successRate;
+        this.excludedPaths = excludedPaths;
 
         // Dùng virtual thread để không block carrier thread
         this.evictionScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -159,10 +175,7 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
         if (state == null) {
             // Span kết thúc nhưng không có onStart tương ứng
             // (hiếm — có thể do processor được thêm sau khi span đã start)
-            // → export ngay để không mất dữ liệu
             log.debug("[GroupedTraceSpanProcessor] orphan span traceId={}, export trực tiếp", traceId);
-            delegate.onEnd(span);
-            delegate.forceFlush();
             return;
         }
 
@@ -171,11 +184,9 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
         int remaining = state.inFlight.decrementAndGet();
 
         if (remaining <= 0) {
-            // Tất cả spans của trace đã kết thúc → flush
             if (traceStates.remove(traceId, state)) {
                 flushTrace(traceId, state, "complete");
             }
-            // Nếu remove trả false → eviction thread đã xử lý rồi → bỏ qua
         }
     }
 
@@ -243,35 +254,35 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
             return; // đã được flush bởi thread khác
         }
 
-        List<ReadableSpan> spans = List.copyOf(state.buffer);
-        int queueSize = getQueueSize(delegate);
-
         try {
-//            log.info("queueSize: {}", queueSize);
-            if (queueSize + spans.size() > 512) delegate.forceFlush();
-            if (!spans.isEmpty()) spans.forEach(delegate::onEnd);
+            List<ReadableSpan> spans = List.copyOf(state.buffer);
+            boolean shouldExport = spans.stream().anyMatch(span -> shouldExport(span.toSpanData()));
+
+            shouldExport = shouldExport || successRate >= 1.0 || rng.nextDouble() < successRate;
+            log.info("shouldExport {} spans: {}", spans.size(), shouldExport);
+            if (!spans.isEmpty() && shouldExport) spans.forEach(delegate::onEnd);
         } catch (Exception e) {
             log.error("[GroupedTraceSpanProcessor] export lỗi traceId={}: {}", traceId, e.getMessage());
         }
     }
 
-    public int getQueueSize(BatchSpanProcessor processor) {
-        try {
-            // Access the 'worker' field inside BatchSpanProcessor
-            Field workerField = BatchSpanProcessor.class.getDeclaredField("worker");
-            workerField.setAccessible(true);
-            Object worker = workerField.get(processor);
+    private boolean shouldExport(SpanData span) {
+        if (isExcluded(getPath(span))) return false;
 
-            // Access the 'queue' field inside the Worker class
-            Field queueField = worker.getClass().getDeclaredField("queue");
-            queueField.setAccessible(true);
-            Queue<?> queue = (Queue<?>) queueField.get(worker);
+        if (span.getStatus().getStatusCode() == StatusCode.ERROR) return true;
 
-            return queue.size();
-        } catch (Exception e) {
-            // Handle reflection exceptions
-            return -1;
-        }
+        String status = span.getAttributes().get(HTTP_STATUS);
+
+        return status != null && Long.parseLong(status) >= 400;
+    }
+
+    private String getPath(SpanData span) {
+        return span.getAttributes().get(URL_PATH);
+    }
+
+    private boolean isExcluded(String path) {
+        if (path == null || path.equals("none")) return false;
+        return excludedPaths.stream().anyMatch(path::startsWith);
     }
     // ── Inner classes ────────────────────────────────────────────────────────
 

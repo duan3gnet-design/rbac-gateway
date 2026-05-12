@@ -28,3 +28,15 @@ datasources:
       spanBar:
         type: "Tag"
         tag: "http.url"
+
+  # k6 metrics sink — chỉ active khi chạy profile perf
+  # Grafana tự skip datasource nếu InfluxDB chưa sẵn sàng
+  - name: InfluxDB-k6
+    type: influxdb
+    uid: influxdb-k6
+    access: proxy
+    url: http://influxdb:8086
+    editable: true
+    jsonData:
+      dbName: k6
+      httpMode: GET
