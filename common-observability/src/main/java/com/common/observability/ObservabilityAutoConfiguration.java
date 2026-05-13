@@ -111,7 +111,7 @@ public class ObservabilityAutoConfiguration {
      */
     @Bean("groupedTraceSpanProcessor")
     @ConditionalOnMissingBean(name = "groupedTraceSpanProcessor")
-    @ConditionalOnProperty(name = "tracing.grouping.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty("tracing.export.otlp.endpoint")
     public GroupedTraceSpanProcessor groupedTraceSpanProcessor(
             SpanExporter spanExporter,
             TracingProperties props) {
@@ -131,6 +131,7 @@ public class ObservabilityAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnProperty("tracing.export.otlp.endpoint")
     public SdkTracerProvider sdkTracerProvider(GroupedTraceSpanProcessor groupedTraceSpanProcessor) {
         Resource serviceResource = Resource.getDefault()
                 .merge(Resource.create(Attributes.of(

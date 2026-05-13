@@ -28,12 +28,17 @@ spring:
           max-wait: 1s
 
 # ── Tracing ──────────────────────────────────────────────────────────────
+management:
+  tracing:
+    sampling:
+      probability: 0.1  # PHẢI là 1.0 — tail-based filtering xảy ra ở TailSamplingExporter
+
 tracing:
   success-rate: 0.01   # dev: 100%, production nên đặt 0.05 — 0.1
 
 logging:
   level:
-    root: WARN
+    root: INFO
     org.springframework.cloud.gateway: WARN
     io.github.resilience4j: WARN
     com.api.gateway: WARN

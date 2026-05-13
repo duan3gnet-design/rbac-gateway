@@ -16,9 +16,14 @@ spring:
   jpa:
     show-sql: false
 
+management:
+  tracing:
+    sampling:
+      probability: 0.1
+
 tracing:
   success-rate: 0.01
 
 logging:
   level:
-    root: WARN
+    root: INFO

@@ -19,7 +19,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.random.RandomGenerator;
 
 /**
  * GroupedTraceSpanProcessor — gom tất cả spans của cùng một trace lại
@@ -92,7 +91,6 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
 
     private final double          successRate;
     private final List<String>    excludedPaths;
-    private final RandomGenerator rng = RandomGenerator.getDefault();
 
     // ── Constructors ─────────────────────────────────────────────────────────
 
@@ -249,7 +247,7 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
 
             boolean shouldExport = spans.stream().anyMatch(span -> shouldExport(span.toSpanData()));
 
-            shouldExport = shouldExport || successRate >= 1.0 || rng.nextDouble() < successRate;
+            shouldExport = shouldExport || successRate >= 1.0 || Math.random() < successRate;
             if (shouldExport) spans.forEach(delegate::onEnd);
         } catch (Exception e) {
             log.error("[GroupedTraceSpanProcessor] export lỗi traceId={}: {}", traceId, e.getMessage());

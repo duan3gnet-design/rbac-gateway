@@ -12,6 +12,8 @@ import org.springframework.util.AntPathMatcher;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * RBAC permission checker — load rules từ DB thay vì hardcode.
@@ -66,6 +68,7 @@ public class RbacPermissionChecker {
 
     private final RoutePermissionRuleRepository ruleRepository;
     private final AntPathMatcher                matcher = new AntPathMatcher();
+    private final Lock lock = new ReentrantLock();
 
     /**
      * Cache danh sách rules từ DB.
@@ -102,7 +105,8 @@ public class RbacPermissionChecker {
     @EventListener(RouteRefreshEvent.class)
     public void onRefreshRoutes(RouteRefreshEvent event) {
         rulesCache.set(null);
-        log.info("[RbacPermissionChecker] Rules cache invalidated — will reload on next request");
+        log.info("[RbacPermissionChecker] Rules cache invalidated");
+        getRules();
     }
 
     /**
@@ -113,6 +117,7 @@ public class RbacPermissionChecker {
     public void invalidateCache() {
         rulesCache.set(null);
         log.info("[RbacPermissionChecker] Rules cache manually invalidated");
+        getRules();
     }
 
     // ─── Private helpers ─────────────────────────────────────────────────────
@@ -125,20 +130,27 @@ public class RbacPermissionChecker {
         List<RoutePermissionRule> cached = rulesCache.get();
         if (cached != null) return cached;
 
-        List<RoutePermissionRule> loaded = ruleRepository.findAll();
+        try {
+            lock.lock();
+            List<RoutePermissionRule> loaded = ruleRepository.findAll();
 
-        loaded.add(new RoutePermissionRule("admin-api", "/api/admin/**", "GET", "admin:READ"));
-        loaded.add(new RoutePermissionRule("admin-api", "/api/admin/**", "POST", "admin:CREATE"));
-        loaded.add(new RoutePermissionRule("admin-api", "/api/admin/**", "PUT", "admin:UPDATE"));
-        loaded.add(new RoutePermissionRule("admin-api", "/api/admin/**", "PATCH", "admin:UPDATE"));
-        loaded.add(new RoutePermissionRule("admin-api", "/api/admin/**", "DELETE", "admin:DELETE"));
+            loaded.add(new RoutePermissionRule("admin-api", "/api/admin/**", "GET", "admin:READ"));
+            loaded.add(new RoutePermissionRule("admin-api", "/api/admin/**", "POST", "admin:CREATE"));
+            loaded.add(new RoutePermissionRule("admin-api", "/api/admin/**", "PUT", "admin:UPDATE"));
+            loaded.add(new RoutePermissionRule("admin-api", "/api/admin/**", "PATCH", "admin:UPDATE"));
+            loaded.add(new RoutePermissionRule("admin-api", "/api/admin/**", "DELETE", "admin:DELETE"));
 
-        // compareAndSet: chỉ update nếu vẫn còn null
-        // (tránh race condition 2 thread cùng load)
-        rulesCache.compareAndSet(null, loaded);
+            // compareAndSet: chỉ update nếu vẫn còn null
+            // (tránh race condition 2 thread cùng load)
+            rulesCache.compareAndSet(null, loaded);
 
-        log.debug("[RbacPermissionChecker] Rules reloaded: {} rules from DB", loaded.size());
-        return rulesCache.get();
+            log.debug("[RbacPermissionChecker] Rules reloaded: {} rules from DB", loaded.size());
+            return rulesCache.get();
+        } catch (Exception ignored) {
+            return List.of();
+        } finally {
+            lock.unlock();
+        }
     }
 
     /**

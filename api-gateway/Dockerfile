@@ -48,7 +48,7 @@ RUN java -Djarmode=layertools -jar app.jar extract
 # -------------------------------------------------------------
 # Stage 3: Runtime — JRE only
 # -------------------------------------------------------------
-FROM eclipse-temurin:21-jdk-alpine
+FROM eclipse-temurin:21-jre-alpine
 
 RUN apk add --no-cache curl
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup

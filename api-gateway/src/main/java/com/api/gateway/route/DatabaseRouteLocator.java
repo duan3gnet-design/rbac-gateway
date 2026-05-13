@@ -4,7 +4,7 @@ import com.api.gateway.entity.GatewayRouteEntity;
 import com.api.gateway.repository.GatewayRouteRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
@@ -18,6 +18,8 @@ import org.springframework.web.servlet.function.ServerResponse;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import static org.springframework.cloud.gateway.server.mvc.filter.BeforeFilterFunctions.uri;
 import static org.springframework.cloud.gateway.server.mvc.filter.CircuitBreakerFilterFunctions.circuitBreaker;
@@ -46,6 +48,7 @@ import static org.springframework.cloud.gateway.server.mvc.handler.HandlerFuncti
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class DatabaseRouteLocator {
 
     // W3C Trace Context headers (OTel)
@@ -60,20 +63,10 @@ public class DatabaseRouteLocator {
     private final GatewayRouteRepository  routeRepository;
     private final ObjectMapper            objectMapper;
     private final LoadBalancerClient      loadBalancerClient;
-    private final CircuitBreakerRegistry  circuitBreakerRegistry;
 
     private final AtomicReference<RouterFunction<ServerResponse>> routerCache =
             new AtomicReference<>(null);
-
-    public DatabaseRouteLocator(GatewayRouteRepository routeRepository,
-                                ObjectMapper objectMapper,
-                                LoadBalancerClient loadBalancerClient,
-                                CircuitBreakerRegistry circuitBreakerRegistry) {
-        this.routeRepository       = routeRepository;
-        this.objectMapper          = objectMapper;
-        this.loadBalancerClient    = loadBalancerClient;
-        this.circuitBreakerRegistry = circuitBreakerRegistry;
-    }
+    private final Lock lock = new ReentrantLock();
 
     // ─── Public API ──────────────────────────────────────────────────────────
 
@@ -86,15 +79,23 @@ public class DatabaseRouteLocator {
     @EventListener(RouteRefreshEvent.class)
     public void onRefreshRoutes(RouteRefreshEvent event) {
         routerCache.set(null);
-        log.info("Route cache invalidated — will reload from database on next request");
+        log.info("Route cache invalidated");
     }
 
     public RouterFunction<ServerResponse> reload() {
-        List<GatewayRouteEntity> routes = routeRepository.findByEnabledTrueOrderByRouteOrderAsc();
-        RouterFunction<ServerResponse> router = buildRouterFunction(routes);
-        routerCache.set(router);
-        log.info("Gateway routes reloaded: {} routes", routes.size());
-        return router;
+        try {
+            lock.lock();
+            List<GatewayRouteEntity> routes = routeRepository.findByEnabledTrueOrderByRouteOrderAsc();
+            RouterFunction<ServerResponse> router = buildRouterFunction(routes);
+
+            routerCache.set(router);
+            log.info("Gateway routes reloaded: {} routes", routes.size());
+            return router;
+        } catch (Exception ignored) {
+            return RouterFunctions.route().build();
+        } finally {
+            lock.unlock();
+        }
     }
 
     // ─── Build ───────────────────────────────────────────────────────────────

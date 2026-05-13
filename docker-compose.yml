@@ -295,34 +295,31 @@ services:
       - rbac-network
 
   # ==================== k6 (performance test runner) ====================
-  # Chạy riêng: docker compose --profile perf run --rm k6 run /scripts/scenarios/full-system.js
-  # Hoặc dùng: docker compose --profile perf up k6
+  # PowerShell : $env:K6_TEST_PROFILE="STRESS"; $env:K6_SCRIPT="scenarios/rate-limit.js"; docker compose --profile perf run --rm k6
+  # Git Bash   : MSYS_NO_PATHCONV=1 K6_TEST_PROFILE=STRESS docker compose --profile perf run --rm k6
+  # CMD        : set K6_TEST_PROFILE=STRESS && docker compose --profile perf run --rm k6
   k6:
     image: grafana/k6:latest
     container_name: rbac-k6
+    working_dir: /scripts
     environment:
-      # Gateway URL trong Docker network
       BASE_URL: http://api-gateway:8080
-      # Stream metrics sang InfluxDB để xem real-time trên Grafana
       K6_OUT: influxdb=http://influxdb:8086/k6
-      # Credentials (override nếu cần)
-      ADMIN_USERNAME: ${K6_ADMIN_USERNAME:-admin}
+      ADMIN_USERNAME: ${K6_ADMIN_USERNAME:-k6admin}
       ADMIN_PASSWORD: ${K6_ADMIN_PASSWORD:-Admin@123}
-      USER_USERNAME: ${K6_USER_USERNAME:-perfuser}
+      USER_USERNAME: ${K6_USER_USERNAME:-k6user}
       USER_PASSWORD: ${K6_USER_PASSWORD:-User@123}
       TEST_PROFILE: ${K6_TEST_PROFILE:-LOAD}
+      K6_SCRIPT: ${K6_SCRIPT:-scenarios/full-system.js}
     volumes:
-      # Mount toàn bộ k6 scripts vào container
       - ./performance-test/k6:/scripts
-      # Output JSON results ra host
       - ./performance-test/k6/results:/scripts/results
-    # Scenario mặc định: full-system LOAD
-    # Override khi chạy: docker compose --profile perf run --rm k6 run /scripts/scenarios/rate-limit.js
-    command: run /scripts/scenarios/full-system.js
+    # k6-entrypoint.sh được mount cùng với scripts —
+    # expand $K6_SCRIPT trong container shell, tránh hoàn toàn
+    # vấn đề Docker Compose interpolate path ở host.
+    entrypoint: ["/bin/sh", "/scripts/k6-entrypoint.sh"]
     depends_on:
       influxdb:
-        condition: service_healthy
-      api-gateway:
         condition: service_healthy
     profiles: [ perf ]
     networks:

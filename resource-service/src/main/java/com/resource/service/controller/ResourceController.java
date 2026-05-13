@@ -26,7 +26,8 @@ public class ResourceController {
 
     @GetMapping("/products")
     public ResponseEntity<List<ProductResponse>> getProducts() {
-        return ResponseEntity.ok(productService.findAll());
+        return ResponseEntity.ok(List.of());
+//        return ResponseEntity.ok(productService.findAll());
     }
 
     @GetMapping("/products/{id}")

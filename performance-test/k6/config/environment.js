@@ -4,8 +4,11 @@
  * Override qua biến môi trường khi chạy:
  *   BASE_URL=http://prod-gateway:8080 k6 run ...
  *
- * Auth-service LoginRequest dùng field `username`, không phải `email`.
- * Các biến ADMIN_USERNAME / USER_USERNAME phản ánh đúng tên field này.
+ * Thứ tự ưu tiên credentials:
+ *   1. ENV var được truyền từ docker-compose / CLI
+ *   2. Default hardcode bên dưới (khớp với docker-compose defaults)
+ *
+ * Auth-service dùng field `username` (không phải `email`) trong LoginRequest.
  */
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
@@ -13,14 +16,13 @@ const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 export const env = {
   baseUrl: BASE_URL,
 
-  // ── Credentials ─────────────────────────────────────────────────────────
-  // Dùng ADMIN_USERNAME / USER_USERNAME (khớp với LoginRequest.username)
-  adminUsername: __ENV.ADMIN_USERNAME || 'perfAdmin',
+  // ── Credentials — default khớp với docker-compose.yml K6_* defaults ────
+  adminUsername: __ENV.ADMIN_USERNAME || 'k6admin',
   adminPassword: __ENV.ADMIN_PASSWORD || 'Admin@123',
-  userUsername:  __ENV.USER_USERNAME  || 'perfUser',
+  userUsername:  __ENV.USER_USERNAME  || 'k6user',
   userPassword:  __ENV.USER_PASSWORD  || 'User@123',
 
-  // Roles để register trong setup()
+  // Roles phải khớp chính xác tên trong bảng roles (migration V1.0__init_database.sql)
   adminRoles: ['ROLE_ADMIN'],
   userRoles:  ['ROLE_USER'],
 

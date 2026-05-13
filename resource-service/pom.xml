@@ -45,11 +45,11 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
         <!-- ─── OBSERVABILITY + EUREKA (dùng chung từ common-observability) ──────── -->
-        <dependency>
-            <groupId>org.api.gateway</groupId>
-            <artifactId>common-observability</artifactId>
-            <version>${project.version}</version>
-        </dependency>
+<!--        <dependency>-->
+<!--            <groupId>org.api.gateway</groupId>-->
+<!--            <artifactId>common-observability</artifactId>-->
+<!--            <version>${project.version}</version>-->
+<!--        </dependency>-->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
