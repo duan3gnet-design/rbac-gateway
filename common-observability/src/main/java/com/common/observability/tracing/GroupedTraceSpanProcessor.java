@@ -1,5 +1,6 @@
 package com.common.observability.tracing;
 
+import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.SpanId;
 import io.opentelemetry.api.trace.StatusCode;
@@ -35,6 +36,27 @@ import java.util.concurrent.atomic.AtomicInteger;
  * toàn bộ cho {@link SpanExporter} delegate một lần — cho phép
  * {@link FilteringSpanExporter} quyết định export hay drop dựa trên
  * kết quả thực của cả trace (status, latency, error...).</p>
+ *
+ * <h3>Truyền sampling decision sang downstream services</h3>
+ * <p>{@code state.shouldExport} (random double [0,1)) được ghi vào
+ * <b>W3C Baggage</b> với key {@code "sampling.rate"} ngay tại {@code onStart}
+ * của span đầu tiên trong trace (root span, tức span không có parentId).
+ * Baggage tự động lan truyền qua HTTP headers ({@code baggage: sampling.rate=0.42})
+ * sang tất cả downstream services nhờ OpenTelemetry propagator, giúp mọi
+ * service đưa ra quyết định sampling nhất quán với gateway.</p>
+ *
+ * <pre>
+ *  onStart(rootSpan)
+ *    → traceStates.computeIfAbsent(traceId, TraceState::new)  // state.shouldExport khởi tạo ở đây
+ *    → nếu span là root (không có parentId hợp lệ):
+ *        → Baggage.current().toBuilder()
+ *               .put("sampling.rate", String.valueOf(state.shouldExport))
+ *               .build()
+ *               .storeInContext(Context.current())
+ *               .makeCurrent()           // gắn vào context hiện tại
+ *        → span.setAttribute(ATTR_SAMPLING_RATE, state.shouldExport)  // ghi vào span để query sau
+ *    → state.inFlight.incrementAndGet()
+ * </pre>
  *
  * <h3>Cơ chế hoàn chỉnh</h3>
  * <pre>
@@ -77,6 +99,12 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
 
     private static final AttributeKey<String> HTTP_STATUS = AttributeKey.stringKey("status");
     private static final AttributeKey<String> URL_PATH    = AttributeKey.stringKey("uri");
+
+    /**
+     * Baggage key dùng để truyền sampling decision sang downstream services.
+     * Downstream đọc: {@code Baggage.current().getEntryValue("should.export")}
+     */
+    static final String BAGGAGE_SHOULD_EXPORT = "should.export";
 
     /** Chu kỳ chạy TTL eviction job. */
     private static final Duration EVICTION_INTERVAL = Duration.ofSeconds(30);
@@ -127,6 +155,10 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
      * onStart — tăng in-flight counter cho trace này.
      * Mỗi span được đăng ký ngay khi bắt đầu để processor biết
      * còn bao nhiêu spans đang chạy trong trace.
+     *
+     * <p>Với root span (không có parentId hợp lệ): ghi {@code state.shouldExport}
+     * vào W3C Baggage ({@value BAGGAGE_SHOULD_EXPORT}) và span attribute
+     * để truyền sampling decision sang tất cả downstream services.</p>
      */
     @Override
     public void onStart(Context parentContext, ReadWriteSpan span) {
@@ -138,10 +170,33 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
             evictStaledTraces();
         }
 
-        traceStates
-                .computeIfAbsent(traceId, id -> new TraceState())
-                .inFlight
-                .incrementAndGet();
+        TraceState state = traceStates.computeIfAbsent(traceId, id -> new TraceState());
+        state.inFlight.incrementAndGet();
+
+        String shouldExport = Baggage.current().getEntryValue(BAGGAGE_SHOULD_EXPORT);
+
+        if (shouldExport != null) {
+            state.shouldExport = Boolean.valueOf(shouldExport);
+        } else state.shouldExport = successRate >= 1.0 || Math.random() < successRate;
+
+        // Truyền sampling decision sang downstream qua W3C Baggage.
+        // Chỉ set trên root span (span không có parent) để tránh ghi đè
+        // khi downstream service tạo child spans của chính nó.
+        boolean isRootSpan = !span.getParentSpanContext().isValid();
+
+        if (isRootSpan) {
+            Baggage updatedBaggage = Baggage.fromContext(parentContext)
+                    .toBuilder()
+                    .put(BAGGAGE_SHOULD_EXPORT, String.valueOf(state.shouldExport))
+                    .build();
+
+            Context updatedContext = updatedBaggage.storeInContext(parentContext);
+            // Baggage sẽ được đọc lại bởi HTTP client instrumentation khi tạo outbound request
+            updatedContext.makeCurrent();
+
+            log.debug("[GroupedTraceSpanProcessor] root span traceId={} — set sampling.rate={} vào Baggage",
+                    traceId, state.shouldExport);
+        }
     }
 
     @Override
@@ -247,7 +302,7 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
 
             boolean shouldExport = spans.stream().anyMatch(span -> shouldExport(span.toSpanData()));
 
-            shouldExport = shouldExport || successRate >= 1.0 || Math.random() < successRate;
+            shouldExport = shouldExport || state.shouldExport;
             if (shouldExport) spans.forEach(delegate::onEnd);
         } catch (Exception e) {
             log.error("[GroupedTraceSpanProcessor] export lỗi traceId={}: {}", traceId, e.getMessage());
@@ -298,6 +353,14 @@ public class GroupedTraceSpanProcessor implements SpanProcessor {
          * ghi (add) xảy ra nhiều lần từ các threads khác nhau.
          */
         final CopyOnWriteArrayList<ReadableSpan> buffer = new CopyOnWriteArrayList<>();
+
+        /**
+         * quyết định có export không.
+         * Đồng thời được ghi vào W3C Baggage ({@value BAGGAGE_SHOULD_EXPORT})
+         * để truyền sang tất cả downstream services nhằm đảm bảo
+         * consistent sampling trên toàn bộ distributed trace.
+         */
+        Boolean shouldExport;
 
         /**
          * Guard double-flush — CAS từ false → true trước khi export.
