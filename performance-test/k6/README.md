@@ -90,6 +90,12 @@ docker run --rm -i \
   grafana/k6 run /scripts/scenarios/full-system.js
 ```
 
+### Cách 4: Docker compose
+
+```bash
+$env:K6_SCRIPT="scenarios/full-system.js"; $env:K6_TEST_PROFILE="LOAD"; docker compose --profile perf run --rm k6
+```
+
 ## Test Profiles
 
 | Profile     | VUs          | Duration | Mục đích                            |

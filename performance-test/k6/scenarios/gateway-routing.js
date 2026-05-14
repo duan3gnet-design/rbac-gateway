@@ -57,10 +57,10 @@ export default function (data) {
     recordMetrics(res, resourceLatency, 'orders', [200]);
 
   } else if (roll < 0.90) {
-    // GET /api/resources/profile/whoami — kiểm tra header injection
+    // GET /api/resources/profile/k6user — kiểm tra header injection
     const res = http.get(env.profileUrl, {
-      headers: authHeaders(userTokens.accessToken),
-      tags:    { name: 'GET /api/resources/profile/whoami' },
+      headers: authHeaders(adminTokens.accessToken),
+      tags:    { name: 'GET /api/resources/profile/k6user' },
     });
     recordMetrics(res, resourceLatency, 'whoami', [200]);
 
@@ -74,6 +74,8 @@ export default function (data) {
         tags:    { name: 'POST /api/auth/refresh' },
       },
     );
+    const body = JSON.parse(res.body);
+    userTokens.refreshToken = body.refreshToken
     recordMetrics(res, authLatency, 'refresh', [200]);
   }
 

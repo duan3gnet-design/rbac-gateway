@@ -32,7 +32,7 @@ export const env = {
   refreshUrl:  `${BASE_URL}/api/auth/refresh`,
   productsUrl: `${BASE_URL}/api/resources/products`,
   ordersUrl:   `${BASE_URL}/api/resources/orders`,
-  profileUrl:  `${BASE_URL}/api/resources/profile/whoami`,
+  profileUrl:  `${BASE_URL}/api/resources/profile/k6user`,
   adminRoutes: `${BASE_URL}/api/admin/routes`,
   adminPerms:  `${BASE_URL}/api/admin/permissions`,
   actuator:    `${BASE_URL}/actuator/health`,

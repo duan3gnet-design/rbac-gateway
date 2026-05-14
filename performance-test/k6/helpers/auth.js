@@ -105,7 +105,7 @@ export function login(username, password) {
 export function refreshAccessToken(refreshToken) {
   const res = http.post(
     env.refreshUrl,
-    JSON.stringify({ refreshToken }),
+    JSON.stringify({ refreshToken: refreshToken }),
     { headers: JSON_HEADERS, tags: { name: 'auth/refresh' } },
   );
   check(res, { 'refresh: status 200': (r) => r.status === 200 });

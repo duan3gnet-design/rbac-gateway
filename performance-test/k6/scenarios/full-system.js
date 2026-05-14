@@ -80,7 +80,12 @@ export default function (data) {
     } else {
       res = http.post(
         env.ordersUrl,
-        JSON.stringify({ productId: 1, quantity: 1 }),
+        JSON.stringify({
+          "items": [
+            {"productId": 1, "quantity": 2},
+            {"productId": 2, "quantity": 1}
+          ]
+        }),
         {
           headers: authHeaders(userTokens.accessToken),
           tags:    { name: 'POST-orders' },
@@ -92,7 +97,7 @@ export default function (data) {
   } else if (roll < 0.70) {
     // ── GET profile/whoami ──────────────────────────────────────────────────
     const res = http.get(env.profileUrl, {
-      headers: authHeaders(userTokens.accessToken),
+      headers: authHeaders(adminTokens.accessToken),
       tags:    { name: 'GET-whoami' },
     });
     recordMetrics(res, resourceLatency, 'whoami', [200]);
@@ -110,17 +115,23 @@ export default function (data) {
         },
       );
       recordMetrics(res, authLatency, 'login', [200]);
-    } else {
-      // Refresh
-      const res = http.post(
-        env.refreshUrl,
-        JSON.stringify({ refreshToken: userTokens.refreshToken }),
-        {
-          headers: { 'Content-Type': 'application/json' },
-          tags:    { name: 'POST-auth-refresh' },
-        },
-      );
-      recordMetrics(res, authLatency, 'refresh', [200]);
+    // } else {
+    //   // Refresh
+    //   const res = http.post(
+    //     env.refreshUrl,
+    //     JSON.stringify({ refreshToken: userTokens.refreshToken }),
+    //     {
+    //       headers: { 'Content-Type': 'application/json' },
+    //       tags:    { name: 'POST-auth-refresh' },
+    //     },
+    //   );
+    //
+    //   console.log(userTokens.refreshToken)
+    //   console.log(res.body)
+    //   const body = JSON.parse(res.body);
+    //   userTokens.refreshToken = body.refreshToken
+    //   console.log(userTokens.refreshToken)
+    //   recordMetrics(res, authLatency, 'refresh', [200]);
     }
 
   } else if (roll < 0.90) {
