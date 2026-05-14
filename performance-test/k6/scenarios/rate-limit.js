@@ -2,6 +2,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { ensureAndLogin, authHeaders } from '../helpers/auth.js';
 import { recordMetrics, rateLimitedCount, rateLimitRate } from '../helpers/metrics.js';
+import { buildErrorReport } from '../helpers/error-logger.js';
 import { Trend } from 'k6/metrics';
 import { env } from '../config/environment.js';
 
@@ -112,4 +113,10 @@ export default function (data) {
 
   // Không sleep trong burst phase để tạo áp lực
   if (phase === 'recovery_phase') sleep(0.5);
+}
+
+export function handleSummary(data) {
+  return {
+    'results/rate-limit-errors.json': buildErrorReport('rate-limit'),
+  };
 }

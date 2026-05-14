@@ -10,6 +10,7 @@ import {
   circuitBreakerCount,
   successRate,
 } from '../helpers/metrics.js';
+import { getErrorBuffer, buildErrorReport } from '../helpers/error-logger.js';
 import { env } from '../config/environment.js';
 import { STRESS } from '../config/options.js';
 
@@ -167,8 +168,14 @@ export function handleSummary(data) {
   });
   console.log('═══════════════════════════════════════════\n');
 
+  const errorBuffer = getErrorBuffer();
+  if (errorBuffer.length > 0) {
+    console.warn(`[ERROR LOG] ${errorBuffer.length} lỗi được ghi vào results/full-system-errors.json`);
+  }
+
   return {
     'results/full-system-summary.json': JSON.stringify(summary, null, 2),
+    'results/full-system-errors.json':  buildErrorReport('full-system'),
     stdout: '\nFull system stress test completed.\n',
   };
 }

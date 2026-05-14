@@ -2,6 +2,7 @@ import http from 'k6/http';
 import { sleep } from 'k6';
 import { ensureAndLogin, authHeaders } from '../helpers/auth.js';
 import { recordMetrics, resourceLatency, authLatency } from '../helpers/metrics.js';
+import { buildErrorReport } from '../helpers/error-logger.js';
 import { env } from '../config/environment.js';
 import { LOAD, SMOKE } from '../config/options.js';
 
@@ -82,4 +83,10 @@ export default function (data) {
 // ── Teardown ─────────────────────────────────────────────────────────────────
 export function teardown(data) {
   console.log('Gateway routing test hoàn thành.');
+}
+
+export function handleSummary(data) {
+  return {
+    'results/gateway-routing-errors.json': buildErrorReport('gateway-routing'),
+  };
 }

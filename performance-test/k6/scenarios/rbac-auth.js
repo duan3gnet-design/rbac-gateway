@@ -2,6 +2,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { ensureAndLogin, authHeaders } from '../helpers/auth.js';
 import { recordMetrics, adminLatency, unauthorizedCount, forbiddenCount } from '../helpers/metrics.js';
+import { buildErrorReport } from '../helpers/error-logger.js';
 import { env } from '../config/environment.js';
 import { LOAD } from '../config/options.js';
 
@@ -112,4 +113,10 @@ export default function (data) {
   }
 
   sleep(Math.random() * 0.3 + 0.05);
+}
+
+export function handleSummary(data) {
+  return {
+    'results/rbac-auth-errors.json': buildErrorReport('rbac-auth'),
+  };
 }

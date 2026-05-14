@@ -1,5 +1,6 @@
 import { check } from 'k6';
 import { Trend, Counter, Rate } from 'k6/metrics';
+import { logError } from './error-logger.js';
 
 /**
  * metrics.js — custom metrics dùng chung cho tất cả scenarios.
@@ -75,6 +76,9 @@ export function recordMetrics(res, latencyMetric, checkName, expectedStatuses = 
     [`${checkName}: status in ${expectedStatuses}`]: () => isSuccess,
     [`${checkName}: response time < 2s`]: (r) => r.timings.duration < 2000,
   });
+
+  // Log chi tiết request lỗi (status ngoài expectedStatuses)
+  if (!isSuccess) logError(res, checkName, expectedStatuses);
 
   return isSuccess;
 }

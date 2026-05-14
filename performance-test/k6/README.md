@@ -96,7 +96,7 @@ docker run --rm -i \
 |-------------|--------------|----------|-------------------------------------|
 | `SMOKE`     | 1            | 1 phút   | Sanity check, không lỗi cơ bản      |
 | `LOAD`      | 20 (sustain) | ~4.5 phút| Traffic bình thường, p95 < 800ms    |
-| `STRESS`    | lên đến 200  | ~6 phút  | Tìm điểm gãy                        |
+| `STRESS`    | lên đến 500  | 3 phút   | Tìm điểm gãy                        |
 | `SOAK`      | 20 (sustain) | ~34 phút | Detect memory leak                  |
 | `SPIKE`     | lên đến 300  | ~2 phút  | Kiểm tra CB và rate limit khi burst |
 | `BREAKPOINT`| lên đến 500  | ~13 phút | Xác định throughput tối đa          |

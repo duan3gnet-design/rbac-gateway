@@ -2,6 +2,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { ensureAndLogin, authHeaders } from '../helpers/auth.js';
 import { circuitBreakerCount, serverErrorCount, recordMetrics, resourceLatency } from '../helpers/metrics.js';
+import { buildErrorReport } from '../helpers/error-logger.js';
 import { env } from '../config/environment.js';
 import { Trend, Counter } from 'k6/metrics';
 
@@ -147,4 +148,10 @@ export default function (data) {
   }
 
   sleep(0.2);
+}
+
+export function handleSummary(data) {
+  return {
+    'results/circuit-breaker-errors.json': buildErrorReport('circuit-breaker'),
+  };
 }

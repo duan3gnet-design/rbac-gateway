@@ -445,6 +445,340 @@
           "tags": []
         }
       ]
+    },
+
+    {
+      "id": 12,
+      "type": "row",
+      "title": "Error Analysis",
+      "gridPos": { "x": 0, "y": 28, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Error Rate by Type (per second)",
+      "description": "So sánh tốc độ lỗi theo từng loại theo thời gian. Spike ở 429 = rate limit đang trigger, spike ở 503 = circuit breaker đang mở.",
+      "gridPos": { "x": 0, "y": 29, "w": 16, "h": 8 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "401 Unauthorized" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "403 Forbidden" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "429 Rate Limited" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "semi-dark-orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "5xx Server Error" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "503 Circuit Breaker" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A", "alias": "401 Unauthorized",
+          "resultFormat": "time_series",
+          "measurement": "errors_401_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }, { "type": "non_negative_derivative", "params": ["1s"] }]],
+          "groupBy": [{ "type": "time", "params": ["$__interval"] }, { "type": "fill", "params": ["0"] }],
+          "tags": []
+        },
+        {
+          "refId": "B", "alias": "403 Forbidden",
+          "resultFormat": "time_series",
+          "measurement": "errors_403_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }, { "type": "non_negative_derivative", "params": ["1s"] }]],
+          "groupBy": [{ "type": "time", "params": ["$__interval"] }, { "type": "fill", "params": ["0"] }],
+          "tags": []
+        },
+        {
+          "refId": "C", "alias": "429 Rate Limited",
+          "resultFormat": "time_series",
+          "measurement": "errors_429_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }, { "type": "non_negative_derivative", "params": ["1s"] }]],
+          "groupBy": [{ "type": "time", "params": ["$__interval"] }, { "type": "fill", "params": ["0"] }],
+          "tags": []
+        },
+        {
+          "refId": "D", "alias": "5xx Server Error",
+          "resultFormat": "time_series",
+          "measurement": "errors_5xx_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }, { "type": "non_negative_derivative", "params": ["1s"] }]],
+          "groupBy": [{ "type": "time", "params": ["$__interval"] }, { "type": "fill", "params": ["0"] }],
+          "tags": []
+        },
+        {
+          "refId": "E", "alias": "503 Circuit Breaker",
+          "resultFormat": "time_series",
+          "measurement": "circuit_breaker_open_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }, { "type": "non_negative_derivative", "params": ["1s"] }]],
+          "groupBy": [{ "type": "time", "params": ["$__interval"] }, { "type": "fill", "params": ["0"] }],
+          "tags": []
+        },
+        {
+          "refId": "F", "alias": "Total Logged Errors",
+          "resultFormat": "time_series",
+          "measurement": "error_logged_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }, { "type": "non_negative_derivative", "params": ["1s"] }]],
+          "groupBy": [{ "type": "time", "params": ["$__interval"] }, { "type": "fill", "params": ["0"] }],
+          "tags": []
+        }
+      ]
+    },
+
+    {
+      "id": 14,
+      "type": "gauge",
+      "title": "Current Error Rate",
+      "description": "Tỷ lệ request lỗi hiện tại. Ngưỡng: xanh < 1%, vàng < 5%, đỏ ≥ 5%.",
+      "gridPos": { "x": 16, "y": 29, "w": 4, "h": 8 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "auto",
+        "showThresholdLabels": true,
+        "showThresholdMarkers": true
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0, "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red",    "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "resultFormat": "time_series",
+        "measurement": "http_req_failed",
+        "select": [[{ "type": "field", "params": ["value"] }, { "type": "mean", "params": [] }]],
+        "groupBy": [],
+        "tags": []
+      }]
+    },
+
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Success Rate",
+      "description": "Tỷ lệ request thành công (2xx). Mục tiêu > 95%.",
+      "gridPos": { "x": 20, "y": 29, "w": 4, "h": 8 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "options": { "colorMode": "background", "graphMode": "area", "textMode": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 0.90 },
+              { "color": "green",  "value": 0.95 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "refId": "A",
+        "resultFormat": "time_series",
+        "measurement": "success_rate",
+        "select": [[{ "type": "field", "params": ["value"] }, { "type": "mean", "params": [] }]],
+        "groupBy": [],
+        "tags": []
+      }]
+    },
+
+    {
+      "id": 16,
+      "type": "stat",
+      "title": "Total Errors by Type",
+      "description": "Tổng số lỗi tích lũy trong toàn bộ test run theo từng loại.",
+      "gridPos": { "x": 0, "y": 37, "w": 24, "h": 5 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto",
+        "reduceOptions": { "calcs": ["sum"] },
+        "orientation": "horizontal"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red",    "value": 50 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A", "alias": "401 Unauthorized",
+          "resultFormat": "time_series",
+          "measurement": "errors_401_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }]],
+          "groupBy": [], "tags": []
+        },
+        {
+          "refId": "B", "alias": "403 Forbidden",
+          "resultFormat": "time_series",
+          "measurement": "errors_403_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }]],
+          "groupBy": [], "tags": []
+        },
+        {
+          "refId": "C", "alias": "429 Rate Limited",
+          "resultFormat": "time_series",
+          "measurement": "errors_429_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }]],
+          "groupBy": [], "tags": []
+        },
+        {
+          "refId": "D", "alias": "5xx Server Error",
+          "resultFormat": "time_series",
+          "measurement": "errors_5xx_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }]],
+          "groupBy": [], "tags": []
+        },
+        {
+          "refId": "E", "alias": "503 Circuit Breaker",
+          "resultFormat": "time_series",
+          "measurement": "circuit_breaker_open_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }]],
+          "groupBy": [], "tags": []
+        },
+        {
+          "refId": "F", "alias": "Total Logged",
+          "resultFormat": "time_series",
+          "measurement": "error_logged_total",
+          "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }]],
+          "groupBy": [], "tags": []
+        }
+      ]
+    },
+
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Errors by URL (per second)",
+      "description": "Số lỗi theo từng URL theo thời gian. Path động (UUID, số) đã được chuẩn hóa thành {id}. Click vào legend để filter theo URL cụ thể.",
+      "gridPos": { "x": 0, "y": 42, "w": 16, "h": 10 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum", "max"] }
+      },
+      "targets": [{
+        "refId": "A",
+        "alias": "$tag_url",
+        "resultFormat": "time_series",
+        "measurement": "errors_by_url",
+        "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }, { "type": "non_negative_derivative", "params": ["1s"] }]],
+        "groupBy": [
+          { "type": "time",  "params": ["$__interval"] },
+          { "type": "tag",   "params": ["url"] },
+          { "type": "fill",  "params": ["0"] }
+        ],
+        "tags": []
+      }]
+    },
+
+    {
+      "id": 18,
+      "type": "barchart",
+      "title": "Top Error URLs — Total Count",
+      "description": "Tổng số lỗi theo URL trong toàn bộ test run. Bar cao = URL đó bị lỗi nhiều nhất.",
+      "gridPos": { "x": 16, "y": 42, "w": 8, "h": 10 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "lineWidth": 1 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red",    "value": 100 }
+            ]
+          }
+        }
+      },
+      "options": {
+        "xTickLabelRotation": -45,
+        "xTickLabelMaxLength": 40,
+        "barRadius": 3,
+        "groupWidth": 0.7,
+        "legend": { "displayMode": "hidden" }
+      },
+      "targets": [{
+        "refId": "A",
+        "alias": "$tag_url",
+        "resultFormat": "time_series",
+        "measurement": "errors_by_url",
+        "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }]],
+        "groupBy": [
+          { "type": "tag", "params": ["url"] }
+        ],
+        "tags": []
+      }]
+    },
+
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "Errors by URL + Type",
+      "description": "Drill down: chọn một URL cụ thể và xem phân bố error_type (unauthorized / rate_limited / circuit_breaker / server_error). Thêm filter 'url = <url>' để focus.",
+      "gridPos": { "x": 0, "y": 52, "w": 24, "h": 8 },
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "unauthorized" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "yellow", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "forbidden" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "rate_limited" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "semi-dark-orange", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "server_error" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "circuit_breaker" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "purple", "mode": "fixed" } }] }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["sum", "max"] }
+      },
+      "targets": [{
+        "refId": "A",
+        "alias": "$tag_error_type",
+        "resultFormat": "time_series",
+        "measurement": "errors_by_url",
+        "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }, { "type": "non_negative_derivative", "params": ["1s"] }]],
+        "groupBy": [
+          { "type": "time",  "params": ["$__interval"] },
+          { "type": "tag",   "params": ["error_type"] },
+          { "type": "tag",   "params": ["url"] },
+          { "type": "fill",  "params": ["0"] }
+        ],
+        "tags": []
+      }]
     }
 
   ]

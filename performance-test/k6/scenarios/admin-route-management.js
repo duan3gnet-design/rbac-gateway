@@ -2,6 +2,7 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { ensureAndLogin, authHeaders } from '../helpers/auth.js';
 import { recordMetrics, adminLatency } from '../helpers/metrics.js';
+import { buildErrorReport } from '../helpers/error-logger.js';
 import { env } from '../config/environment.js';
 
 /**
@@ -197,4 +198,10 @@ export function teardown(data) {
   } catch (e) {
     console.error('Teardown cleanup lỗi:', e.message);
   }
+}
+
+export function handleSummary(data) {
+  return {
+    'results/admin-route-management-errors.json': buildErrorReport('admin-route-management'),
+  };
 }

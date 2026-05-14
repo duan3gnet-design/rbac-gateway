@@ -29,10 +29,9 @@ export const LOAD = {
 /** Stress test — tìm điểm gãy của hệ thống */
 export const STRESS = {
   stages: [
-    { duration: '1m',  target: 50  },
-    { duration: '2m',  target: 100 },
-    { duration: '2m',  target: 200 },
-    { duration: '1m',  target: 0   },
+    { duration: '1m',   target: 200 },  // ramp-up
+    { duration: '1m30s', target: 500 }, // push to max
+    { duration: '30s',  target: 0   },  // ramp-down
   ],
   thresholds: {
     http_req_failed:   ['rate<0.05'],
