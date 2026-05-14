@@ -56,7 +56,7 @@ class CircuitBreakerIntegrationTest extends AbstractIntegrationTest {
         drain(() -> webClient.post().uri("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue(body).exchange(), 5);
 
-        CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("authServiceCB");
+        CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("fastOpenCB");
         Assertions.assertEquals(CircuitBreaker.State.OPEN, cb.getState());
 
         webClient.post().uri("/api/auth/login")
@@ -78,7 +78,7 @@ class CircuitBreakerIntegrationTest extends AbstractIntegrationTest {
         drain(() -> webClient.post().uri("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON).bodyValue("{}").exchange(), 5);
 
-        CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("authServiceCB");
+        CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("fastOpenCB");
         Assertions.assertEquals(CircuitBreaker.State.OPEN, cb.getState());
 
         webClient.post().uri("/api/auth/register")
@@ -101,7 +101,7 @@ class CircuitBreakerIntegrationTest extends AbstractIntegrationTest {
         drain(() -> webClient.get().uri("/api/resources/products")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange(), 4);
 
-        CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("resourceServiceCB");
+        CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("slowOpenCB");
         Assertions.assertEquals(CircuitBreaker.State.OPEN, cb.getState());
 
         webClient.get().uri("/api/resources/products")
@@ -124,7 +124,7 @@ class CircuitBreakerIntegrationTest extends AbstractIntegrationTest {
         drain(() -> webClient.get().uri("/api/resources/products")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token).exchange(), 5);
 
-        CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("resourceServiceCB");
+        CircuitBreaker cb = circuitBreakerRegistry.circuitBreaker("slowOpenCB");
         Assertions.assertEquals(CircuitBreaker.State.OPEN, cb.getState());
 
         wireMock.resetAll();

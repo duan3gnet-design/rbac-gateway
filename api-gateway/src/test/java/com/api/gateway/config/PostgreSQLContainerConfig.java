@@ -178,47 +178,47 @@ public class PostgreSQLContainerConfig {
 
                 ('auth-login', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/auth/login"}},{"name":"Method","args":{"methods":"POST"}}]',
-                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"POST","backoff.firstBackoff":"100ms","backoff.maxBackoff":"500ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"authServiceCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"POST","backoff.firstBackoff":"100ms","backoff.maxBackoff":"500ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
                  10),
                 
                 ('auth-register', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/auth/register"}},{"name":"Method","args":{"methods":"POST"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"authServiceCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
                  20),
                 
                 ('auth-refresh', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/auth/refresh"}},{"name":"Method","args":{"methods":"POST"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"authServiceCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
                  30),
                 
                 ('auth-logout', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/auth/logout"}},{"name":"Method","args":{"methods":"POST"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"authServiceCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
                  40),
                 
                 ('auth-logout-all', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/auth/logout-all"}},{"name":"Method","args":{"methods":"POST"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"authServiceCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
                  50),
                 
                 ('auth-validate', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/auth/validate"}},{"name":"Method","args":{"methods":"GET"}}]',
-                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"500ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"authServiceCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"500ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
                  60),
                 
                 ('auth-google', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/auth/google"}},{"name":"Method","args":{"methods":"POST"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"authServiceCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
                  70),
                 
                 ('oauth2-authorization', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/oauth2/**"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"authServiceCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
                  80),
                 
                 ('oauth2-login-page', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/login/oauth2/**"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"authServiceCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
                  90),
                 
                 -- ─── Resource Service routes — tách chi tiết theo path/method ────────────────
@@ -235,80 +235,80 @@ public class PostgreSQLContainerConfig {
                 -- Products (ROLE_USER: products:READ)
                 ('resource-products', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/products"}},{"name":"Method","args":{"methods":"GET"}}]',
-                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  200),
                 
                 ('resource-products-detail', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/products/**"}},{"name":"Method","args":{"methods":"GET"}}]',
-                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  210),
                 
                 -- Orders (ROLE_USER: orders:READ, orders:CREATE, orders:UPDATE, orders:DELETE)
                 ('resource-orders-get', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/orders"}},{"name":"Method","args":{"methods":"GET"}}]',
-                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  220),
                 
                 ('resource-orders-get-detail', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/orders/**"}},{"name":"Method","args":{"methods":"GET"}}]',
-                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  230),
                 
                 ('resource-orders-create', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/orders"}},{"name":"Method","args":{"methods":"POST"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  240),
                 
                 ('resource-orders-create-detail', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/orders/**"}},{"name":"Method","args":{"methods":"POST"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  250),
                 
                 ('resource-orders-update', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/orders/**"}},{"name":"Method","args":{"methods":"PUT"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  260),
                 
                 ('resource-orders-delete', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/orders/**"}},{"name":"Method","args":{"methods":"DELETE"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  270),
                 
                 -- Admin Users (ROLE_ADMIN: users:READ, users:CREATE, users:UPDATE, users:DELETE)
                 ('resource-admin-users-get', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/admin/users"}},{"name":"Method","args":{"methods":"GET"}}]',
-                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  300),
                 
                 ('resource-admin-users-get-detail', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/admin/users/**"}},{"name":"Method","args":{"methods":"GET"}}]',
-                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  310),
                 
                 ('resource-admin-users-create', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/admin/users/**"}},{"name":"Method","args":{"methods":"POST"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  320),
                 
                 ('resource-admin-users-update', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/admin/users/**"}},{"name":"Method","args":{"methods":"PUT"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  330),
                 
                 ('resource-admin-users-delete', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/admin/users/**"}},{"name":"Method","args":{"methods":"DELETE"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  340),
                 
                 -- Profile (ROLE_USER: profile:READ, profile:UPDATE)
                 ('resource-profile-get', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/profile/**"}},{"name":"Method","args":{"methods":"GET"}}]',
-                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  400),
                 
                 ('resource-profile-update', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/profile/**"}},{"name":"Method","args":{"methods":"PUT"}}]',
-                 '[{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+                 '[{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  410)
 
                 ON CONFLICT DO NOTHING;

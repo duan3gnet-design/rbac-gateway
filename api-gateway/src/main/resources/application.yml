@@ -109,24 +109,30 @@ rate-limit:
 resilience4j:
   circuitbreaker:
     instances:
-      authServiceCB:
-        sliding-window-size: 10
+      fastOpenCB:
+        sliding-window-size: 50
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
-      resourceServiceCB:
-        sliding-window-size: 10
+        slow-call-duration-threshold: 2000ms
+        slow-call-rate-threshold: 60
+        minimum-number-of-calls: 10
+      slowOpenCB:
+        sliding-window-size: 100
         failure-rate-threshold: 50
-        wait-duration-in-open-state: 15s
+        wait-duration-in-open-state: 5s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+        slow-call-duration-threshold: 9000ms
+        slow-call-rate-threshold: 60
+        minimum-number-of-calls: 10
 
   timelimiter:
     instances:
-      authServiceCB:
+      fastOpenCB:
         timeout-duration: 3s
-      resourceServiceCB:
+      slowOpenCB:
         timeout-duration: 5s
 
 # ==================== ACTUATOR ====================

@@ -46,13 +46,13 @@ rate-limit:
 resilience4j:
   circuitbreaker:
     instances:
-      authServiceCB:
+      fastOpenCB:
         sliding-window-size: 4
         failure-rate-threshold: 50
         wait-duration-in-open-state: 10s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
-      resourceServiceCB:
+      slowOpenCB:
         sliding-window-size: 4
         failure-rate-threshold: 50
         wait-duration-in-open-state: 1s
@@ -61,9 +61,9 @@ resilience4j:
 
   timelimiter:
     instances:
-      authServiceCB:
+      fastOpenCB:
         timeout-duration: 3s
-      resourceServiceCB:
+      slowOpenCB:
         timeout-duration: 3s
 
 management:

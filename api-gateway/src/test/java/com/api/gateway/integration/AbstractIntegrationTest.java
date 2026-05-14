@@ -23,7 +23,7 @@ import java.util.Set;
 @Import({PostgreSQLContainerConfig.class})
 abstract class AbstractIntegrationTest {
 
-    private static final List<String> CB_NAMES = List.of("authServiceCB", "resourceServiceCB");
+    private static final List<String> CB_NAMES = List.of("fastOpenCB", "slowOpenCB");
 
     /** Routes được seed bởi init.sql — không bị cleanup giữa các test */
     private static final List<String> SEEDED_ROUTE_IDS = List.of("auth-login",

@@ -520,11 +520,11 @@ rate-limit:
 resilience4j:
   circuitbreaker:
     instances:
-      authServiceCB:
+      fastOpenCB:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
-      resourceServiceCB:
+      slowOpenCB:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 15s

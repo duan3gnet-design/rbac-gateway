@@ -35,16 +35,16 @@ const PREDICATE_TEMPLATES = [
 
 const FILTER_TEMPLATES = [
   {
-    label: 'CircuitBreaker (authServiceCB)',
-    value: '[{"name":"CircuitBreaker","args":{"name":"authServiceCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
+    label: 'CircuitBreaker (fastOpenCB)',
+    value: '[{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
   },
   {
-    label: 'CircuitBreaker (resourceServiceCB)',
-    value: '[{"name":"CircuitBreaker","args":{"name":"resourceServiceCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
+    label: 'CircuitBreaker (slowOpenCB)',
+    value: '[{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
   },
   {
     label: 'Retry + CircuitBreaker',
-    value: '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET"}},{"name":"CircuitBreaker","args":{"name":"authServiceCB","fallbackUri":"forward:/fallback/auth"}}]',
+    value: '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET"}},{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth"}}]',
   },
   { label: 'Không có filter', value: '[]' },
 ]
