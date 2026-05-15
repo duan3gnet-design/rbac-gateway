@@ -63,4 +63,10 @@ public final class AdminDtos {
             String ipAddr,
             int    port
     ) {}
+
+    /** Một endpoint được lấy từ /actuator/mappings của service */
+    public record ServiceMappingResponse(
+            String path,
+            List<String> methods   // empty = ANY
+    ) {}
 }

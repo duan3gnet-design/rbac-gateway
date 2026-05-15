@@ -87,4 +87,15 @@ public class AdminRouteController {
     public List<AdminDtos.EurekaServiceResponse> getEurekaServices() {
         return eurekaService.getRegisteredServices();
     }
+
+    /**
+     * Lấy danh sách endpoints từ /actuator/mappings của một service cụ thể.
+     * Dùng cho path picker trong Route Form UI.
+     * GET /api/admin/eureka/services/{serviceId}/mappings
+     */
+    @GetMapping("/eureka/services/{serviceId}/mappings")
+    public List<AdminDtos.ServiceMappingResponse> getServiceMappings(
+            @PathVariable String serviceId) {
+        return eurekaService.getServiceMappings(serviceId);
+    }
 }

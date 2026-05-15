@@ -58,7 +58,13 @@ export default api
 export const eurekaApi = {
   /**
    * GET /api/admin/eureka/services
-   * Backend trả về: [{ serviceId, instanceId, homePageUrl, healthCheckUrl, ipAddr, port }]
+   * Backend trả về: [{ serviceId, instanceId, homePageUrl, ipAddr, port }]
    */
   getServices: () => api.get('/eureka/services'),
+
+  /**
+   * GET /api/admin/eureka/services/:serviceId/mappings
+   * Backend trả về: [{ path, methods[] }]
+   */
+  getMappings: (serviceId) => api.get(`/eureka/services/${serviceId}/mappings`),
 }
