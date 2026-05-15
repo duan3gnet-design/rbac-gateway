@@ -674,8 +674,8 @@
     {
       "id": 17,
       "type": "timeseries",
-      "title": "Errors by URL (per second)",
-      "description": "Số lỗi theo từng URL theo thời gian. Path động (UUID, số) đã được chuẩn hóa thành {id}. Click vào legend để filter theo URL cụ thể.",
+      "title": "Errors by URL (count per interval)",
+      "description": "Số lỗi theo từng URL theo thời gian. Path động (UUID, số) đã được chuẩn hóa thành {id}. Click vào legend để focus một URL cụ thể.",
       "gridPos": { "x": 0, "y": 42, "w": 16, "h": 10 },
       "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
       "fieldConfig": {
@@ -686,14 +686,14 @@
       },
       "targets": [{
         "refId": "A",
-        "alias": "$tag_url",
+        "alias": "$tag_endpoint",
         "resultFormat": "time_series",
         "measurement": "errors_by_url",
-        "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }, { "type": "non_negative_derivative", "params": ["1s"] }]],
+        "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }]],
         "groupBy": [
-          { "type": "time",  "params": ["$__interval"] },
-          { "type": "tag",   "params": ["url"] },
-          { "type": "fill",  "params": ["0"] }
+          { "type": "time", "params": ["$__interval"] },
+          { "type": "tag",  "params": ["endpoint"] },
+          { "type": "fill", "params": ["previous"] }
         ],
         "tags": []
       }]
@@ -709,7 +709,6 @@
       "fieldConfig": {
         "defaults": {
           "unit": "short",
-          "custom": { "lineWidth": 1 },
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -717,7 +716,8 @@
               { "color": "yellow", "value": 10 },
               { "color": "red",    "value": 100 }
             ]
-          }
+          },
+          "color": { "mode": "thresholds" }
         }
       },
       "options": {
@@ -725,16 +725,19 @@
         "xTickLabelMaxLength": 40,
         "barRadius": 3,
         "groupWidth": 0.7,
-        "legend": { "displayMode": "hidden" }
+        "legend": { "displayMode": "hidden" },
+        "orientation": "horizontal"
       },
       "targets": [{
         "refId": "A",
-        "alias": "$tag_url",
-        "resultFormat": "time_series",
+        "alias": "$tag_endpoint",
+        "resultFormat": "table",
         "measurement": "errors_by_url",
         "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }]],
         "groupBy": [
-          { "type": "tag", "params": ["url"] }
+          { "type": "time", "params": ["$__interval"] },
+          { "type": "tag",  "params": ["endpoint"] },
+          { "type": "fill", "params": ["0"] }
         ],
         "tags": []
       }]
@@ -744,7 +747,7 @@
       "id": 19,
       "type": "timeseries",
       "title": "Errors by URL + Type",
-      "description": "Drill down: chọn một URL cụ thể và xem phân bố error_type (unauthorized / rate_limited / circuit_breaker / server_error). Thêm filter 'url = <url>' để focus.",
+      "description": "Drill down theo error_type (unauthorized / rate_limited / circuit_breaker / server_error) từng URL.",
       "gridPos": { "x": 0, "y": 52, "w": 24, "h": 8 },
       "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
       "fieldConfig": {
@@ -767,15 +770,15 @@
       },
       "targets": [{
         "refId": "A",
-        "alias": "$tag_error_type",
+        "alias": "$tag_endpoint — $tag_error_type",
         "resultFormat": "time_series",
         "measurement": "errors_by_url",
-        "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }, { "type": "non_negative_derivative", "params": ["1s"] }]],
+        "select": [[{ "type": "field", "params": ["value"] }, { "type": "sum", "params": [] }]],
         "groupBy": [
           { "type": "time",  "params": ["$__interval"] },
+          { "type": "tag",   "params": ["endpoint"] },
           { "type": "tag",   "params": ["error_type"] },
-          { "type": "tag",   "params": ["url"] },
-          { "type": "fill",  "params": ["0"] }
+          { "type": "fill",  "params": ["previous"] }
         ],
         "tags": []
       }]

@@ -144,7 +144,7 @@ public class RbacPermissionChecker {
             // (tránh race condition 2 thread cùng load)
             rulesCache.compareAndSet(null, loaded);
 
-            log.debug("[RbacPermissionChecker] Rules reloaded: {} rules from DB", loaded.size());
+            log.info("[RbacPermissionChecker] Rules reloaded: {} rules from DB", loaded.size());
             return rulesCache.get();
         } catch (Exception ignored) {
             return List.of();

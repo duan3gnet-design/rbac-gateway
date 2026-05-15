@@ -100,10 +100,9 @@ export function logError(res, checkName, expectedStatuses) {
   errorLoggedCount.add(1);
 
   // Ghi metric có tag để Grafana có thể GROUP BY url / error_type / method
-  // normalizeUrl() rút gọn path động (UUID, số) thành pattern tĩnh
-  // tránh cardinality explosion trong InfluxDB
+  const normalizedUrl = normalizeUrl(res.url);
   errorByUrl.add(1, {
-    url:        normalizeUrl(res.url),
+    endpoint:   normalizedUrl,
     method:     entry.method,
     status:     String(status),
     error_type: errorType,
@@ -226,15 +225,19 @@ function truncate(str, maxLen) {
  * @returns {string}
  */
 function normalizeUrl(url) {
+  if (!url) return 'unknown';
   try {
-    const parsed = new URL(url);
-    const normalized = parsed.pathname
-      // UUID
-      .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '{id}')
-      // số nguyên thuần (ID số)
-      .replace(/\/\d+(?=\/|$)/g, '/{id}');
-    return `${parsed.host}${normalized}`;
-  } catch {
-    return url;
+    // Bỏ query string và fragment
+    let path = String(url).split('?')[0].split('#')[0];
+    // Bỏ scheme + host (giữ từ path trở đi)
+    // http://api-gateway:8080/api/resources/products/123 → /api/resources/products/123
+    path = path.replace(/^https?:\/\/[^\/]+/, '');
+    // UUID
+    path = path.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '{id}');
+    // số nguyên (ID số)
+    path = path.replace(/\/\d+(?=\/|$)/g, '/{id}');
+    return path || '/';
+  } catch (e) {
+    return 'unknown';
   }
 }

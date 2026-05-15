@@ -125,12 +125,6 @@ export default function (data) {
     //       tags:    { name: 'POST-auth-refresh' },
     //     },
     //   );
-    //
-    //   console.log(userTokens.refreshToken)
-    //   console.log(res.body)
-    //   const body = JSON.parse(res.body);
-    //   userTokens.refreshToken = body.refreshToken
-    //   console.log(userTokens.refreshToken)
     //   recordMetrics(res, authLatency, 'refresh', [200]);
     }
 
