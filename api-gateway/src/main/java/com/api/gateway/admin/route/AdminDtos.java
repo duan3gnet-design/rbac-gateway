@@ -52,4 +52,15 @@ public final class AdminDtos {
             String action,
             String code           // = "resource:action"
     ) {}
+
+    // ─── Eureka ──────────────────────────────────────────────────────────────
+
+    /** Thông tin một service instance đang đăng ký trên Eureka */
+    public record EurekaServiceResponse(
+            String serviceId,
+            String instanceId,
+            String homePageUrl,
+            String ipAddr,
+            int    port
+    ) {}
 }

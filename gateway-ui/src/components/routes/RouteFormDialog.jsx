@@ -1,13 +1,17 @@
 import { useState, useEffect } from 'react'
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, TextField, Grid, MenuItem, Typography,
+  Button, TextField, Grid, Typography,
   Box, Divider, InputAdornment, FormControlLabel, Switch,
-  Alert, CircularProgress,
+  Alert, CircularProgress, Autocomplete, Chip, Tooltip,
+  IconButton,
 } from '@mui/material'
 import LinkIcon from '@mui/icons-material/LinkRounded'
 import CodeIcon from '@mui/icons-material/CodeRounded'
 import SortIcon from '@mui/icons-material/SortByAlphaRounded'
+import RefreshIcon from '@mui/icons-material/RefreshRounded'
+import CloudIcon from '@mui/icons-material/CloudRounded'
+import { eurekaApi } from '../../api/routeApi'
 
 const DEFAULT_FORM = {
   id: '',
@@ -51,17 +55,49 @@ const FILTER_TEMPLATES = [
 
 export default function RouteFormDialog({ open, onClose, onSave, initialData, saving }) {
   const isEdit = Boolean(initialData?.id)
-  const [form, setForm]     = useState(DEFAULT_FORM)
-  const [errors, setErrors] = useState({})
+  const [form, setForm]       = useState(DEFAULT_FORM)
+  const [errors, setErrors]   = useState({})
   const [jsonError, setJsonError] = useState({ predicates: '', filters: '' })
+
+  // ── Eureka state ────────────────────────────────────────────────────────────
+  const [eurekaServices, setEurekaServices]   = useState([])
+  const [eurekaLoading, setEurekaLoading]     = useState(false)
+  const [eurekaError, setEurekaError]         = useState('')
+  const [selectedService, setSelectedService] = useState(null)
+
+  // ── Fetch Eureka services ───────────────────────────────────────────────────
+  const fetchEurekaServices = async () => {
+    setEurekaLoading(true)
+    setEurekaError('')
+    try {
+      const res = await eurekaApi.getServices()
+      setEurekaServices(res.data ?? [])
+    } catch (e) {
+      setEurekaError(e.response?.data?.message || 'Không thể lấy danh sách service từ Eureka')
+    } finally {
+      setEurekaLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (open) {
       setForm(initialData ?? DEFAULT_FORM)
       setErrors({})
       setJsonError({ predicates: '', filters: '' })
+      setSelectedService(null)
+      fetchEurekaServices()
     }
   }, [open, initialData])
+
+  // ── Khi chọn service từ Eureka → tự điền URI ───────────────────────────────
+  const handleSelectEurekaService = (_, svc) => {
+    setSelectedService(svc)
+    if (svc) {
+      const uri = `http://${svc.serviceId.toLowerCase()}:${svc.port}`
+      setForm(f => ({ ...f, uri }))
+      if (errors.uri) setErrors(e => ({ ...e, uri: '' }))
+    }
+  }
 
   const set = (field) => (e) => {
     const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value
@@ -77,6 +113,8 @@ export default function RouteFormDialog({ open, onClose, onSave, initialData, sa
         setJsonError(j => ({ ...j, [field]: 'JSON không hợp lệ' }))
       }
     }
+    // Nếu user tự sửa URI → bỏ chọn Eureka service
+    if (field === 'uri') setSelectedService(null)
   }
 
   const validate = () => {
@@ -156,6 +194,90 @@ export default function RouteFormDialog({ open, onClose, onSave, initialData, sa
                   {form.enabled ? 'Đang bật' : 'Đang tắt'}
                 </Typography>
               }
+            />
+          </Grid>
+
+          {/* ── Eureka Service Picker ── */}
+          <Grid size={12}>
+            <Box sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CloudIcon sx={{ fontSize: 16, color: '#64748b' }} />
+              <Typography variant="subtitle2">Chọn service từ Eureka</Typography>
+              <Tooltip title="Làm mới danh sách">
+                <span>
+                  <IconButton
+                    size="small"
+                    onClick={fetchEurekaServices}
+                    disabled={eurekaLoading}
+                    sx={{ ml: 0.5 }}
+                  >
+                    {eurekaLoading
+                      ? <CircularProgress size={14} />
+                      : <RefreshIcon sx={{ fontSize: 16 }} />
+                    }
+                  </IconButton>
+                </span>
+              </Tooltip>
+              {selectedService && (
+                <Chip
+                  label={selectedService.serviceId}
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                  onDelete={() => {
+                    setSelectedService(null)
+                    setForm(f => ({ ...f, uri: '' }))
+                  }}
+                  sx={{ ml: 'auto', fontSize: '0.72rem' }}
+                />
+              )}
+            </Box>
+
+            <Autocomplete
+              options={eurekaServices}
+              value={selectedService}
+              onChange={handleSelectEurekaService}
+              loading={eurekaLoading}
+              getOptionLabel={(svc) => {
+                const url = svc.homePageUrl?.replace(/\/$/, '') || `http://${svc.ipAddr}:${svc.port}`
+                return `${svc.serviceId}  —  ${url}`
+              }}
+              isOptionEqualToValue={(a, b) => a.instanceId === b.instanceId}
+              noOptionsText={eurekaError || 'Không có service nào đang chạy'}
+              renderOption={(props, svc) => {
+                const url = svc.homePageUrl?.replace(/\/$/, '') || `http://${svc.ipAddr}:${svc.port}`
+                return (
+                  <Box component="li" {...props} key={svc.instanceId}>
+                    <Box>
+                      <Typography variant="body2" fontWeight={600} sx={{ lineHeight: 1.4 }}>
+                        {svc.serviceId}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                        {url}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  placeholder="Tìm theo tên service..."
+                  size="small"
+                  error={Boolean(eurekaError)}
+                  helperText={eurekaError || 'Chọn để tự điền URI, hoặc nhập thủ công bên dưới'}
+                  slotProps={{
+                    input: {
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {eurekaLoading ? <CircularProgress size={14} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }
+                  }}
+                />
+              )}
             />
           </Grid>
 

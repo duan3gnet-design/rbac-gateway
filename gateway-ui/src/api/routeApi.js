@@ -52,3 +52,13 @@ export const permissionApi = {
 }
 
 export default api
+
+// ─── Eureka API ───────────────────────────────────────────────────────────────
+
+export const eurekaApi = {
+  /**
+   * GET /api/admin/eureka/services
+   * Backend trả về: [{ serviceId, instanceId, homePageUrl, healthCheckUrl, ipAddr, port }]
+   */
+  getServices: () => api.get('/eureka/services'),
+}

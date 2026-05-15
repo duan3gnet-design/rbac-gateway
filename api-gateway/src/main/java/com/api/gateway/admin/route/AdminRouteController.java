@@ -15,6 +15,7 @@ import java.util.List;
 public class AdminRouteController {
 
     private final AdminRouteService service;
+    private final EurekaAdminService eurekaService;
 
     // ─── Routes ─────────────────────────────────────────────────────────────
 
@@ -73,5 +74,17 @@ public class AdminRouteController {
     @GetMapping("/permissions")
     public List<AdminDtos.PermissionResponse> getAllPermissions() {
         return service.getAllPermissions();
+    }
+
+    // ─── Eureka ──────────────────────────────────────────────────────────────
+
+    /**
+     * Trả về danh sách service instances đang UP trong Eureka registry.
+     * Dùng cho Eureka service picker trên Route Form UI.
+     * GET /api/admin/eureka/services
+     */
+    @GetMapping("/eureka/services")
+    public List<AdminDtos.EurekaServiceResponse> getEurekaServices() {
+        return eurekaService.getRegisteredServices();
     }
 }
