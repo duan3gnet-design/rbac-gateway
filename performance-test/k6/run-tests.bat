@@ -8,6 +8,9 @@ REM
 REM Ví dụ:
 REM   run-tests.bat
 REM   run-tests.bat full-system STRESS
+REM   run-tests.bat full-system SOAK
+REM   run-tests.bat full-system SPIKE
+REM   run-tests.bat full-system BREAKPOINT
 REM   run-tests.bat rate-limit
 REM   run-tests.bat all
 REM ============================================================================
