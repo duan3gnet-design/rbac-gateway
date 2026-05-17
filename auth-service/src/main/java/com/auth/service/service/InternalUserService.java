@@ -1,8 +1,10 @@
 package com.auth.service.service;
 
 import com.auth.service.dto.UserSummary;
+import com.auth.service.entity.Role;
 import com.auth.service.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,7 +20,7 @@ public class InternalUserService {
 
     @Transactional(readOnly = true)
     public List<UserSummary> findAll() {
-        return userRepository.findAll().stream()
+        return userRepository.findAll(PageRequest.of(0, 10)).stream()
                 .map(this::toSummary)
                 .toList();
     }
@@ -41,7 +43,7 @@ public class InternalUserService {
 
     private UserSummary toSummary(com.auth.service.entity.User user) {
         var roles = user.getRoles().stream()
-                .map(r -> r.getName())
+                .map(Role::getName)
                 .collect(Collectors.toSet());
         return new UserSummary(
                 user.getId(),

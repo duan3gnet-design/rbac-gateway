@@ -9,6 +9,7 @@ import com.resource.service.exception.ResourceNotFoundException;
 import com.resource.service.repository.OrderRepository;
 import com.resource.service.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,14 +26,14 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public List<OrderResponse> findByUsername(String username) {
-        return orderRepository.findAllByUsername(username).stream()
+        return orderRepository.findAllByUsername(username, PageRequest.of(0, 10)).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<OrderResponse> findAll() {
-        return orderRepository.findAll().stream()
+        return orderRepository.findAll(PageRequest.of(0, 10)).stream()
                 .map(this::toResponse)
                 .toList();
     }
