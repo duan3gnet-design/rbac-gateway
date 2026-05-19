@@ -9,6 +9,7 @@ import RoutesPage from './pages/RoutesPage'
 import RateLimitPage from './pages/RateLimitPage'
 import PermissionsPage from './pages/PermissionsPage'
 import UsersPage from './pages/UsersPage'
+import ResourcesPage from './pages/ResourcesPage'
 import LoginPage from './pages/LoginPage'
 import './index.css'
 
@@ -43,6 +44,7 @@ export default function App() {
               <Route path="/rate-limits" element={<RateLimitPage />} />
               <Route path="/permissions" element={<PermissionsPage />} />
               <Route path="/users"       element={<UsersPage />} />
+              <Route path="/resources"   element={<ResourcesPage />} />
             </Routes>
           </Box>
         </Box>

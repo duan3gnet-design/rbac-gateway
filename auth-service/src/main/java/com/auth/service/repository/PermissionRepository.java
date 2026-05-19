@@ -26,6 +26,14 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
     """)
     List<Permission> findAllWithDetails();
 
+    @Query("""
+        SELECT p FROM Permission p
+        JOIN FETCH p.resource
+        JOIN FETCH p.action
+        WHERE p.resource.id = :resourceId
+    """)
+    List<Permission> findAllByResourceId(Long resourceId);
+
     boolean existsByRoleAndResourceIdAndActionId(String role, Long resourceId, Long actionId);
 
     Optional<Permission> findByRoleAndResourceIdAndActionId(String role, Long resourceId, Long actionId);

@@ -10,6 +10,7 @@ import ShieldIcon from '@mui/icons-material/ShieldRounded'
 import PeopleIcon from '@mui/icons-material/PeopleRounded'
 import SettingsIcon from '@mui/icons-material/SettingsRounded'
 import SpeedIcon from '@mui/icons-material/SpeedRounded'
+import CategoryIcon from '@mui/icons-material/CategoryRounded'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import HubIcon from '@mui/icons-material/HubRounded'
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { label: 'Dashboard',   icon: <DashboardIcon />, path: '/',            disabled: true  },
   { label: 'Routes',      icon: <RouteIcon />,     path: '/routes',      disabled: false },
   { label: 'Rate Limit',  icon: <SpeedIcon />,     path: '/rate-limits', disabled: false },
+  { label: 'Resources',   icon: <CategoryIcon />,  path: '/resources',   disabled: false },
   { label: 'Permissions', icon: <ShieldIcon />,    path: '/permissions', disabled: false },
   { label: 'Users',       icon: <PeopleIcon />,    path: '/users',       disabled: false },
   { label: 'Settings',    icon: <SettingsIcon />,  path: '/settings',    disabled: true  },
@@ -26,10 +28,10 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ onLogout }) {
   const [collapsed, setCollapsed] = useState(false)
-  const location  = useLocation()
-  const navigate  = useNavigate()
+  const location   = useLocation()
+  const navigate   = useNavigate()
   const activePath = location.pathname
-  const width = collapsed ? 64 : 240
+  const width      = collapsed ? 64 : 240
 
   return (
     <Box
@@ -47,7 +49,7 @@ export default function Sidebar({ onLogout }) {
         height: '100vh',
       }}
     >
-      {/* Logo */}
+      {/* ── Logo ── */}
       <Box
         sx={{
           px: collapsed ? 1.5 : 2.5,
@@ -82,10 +84,12 @@ export default function Sidebar({ onLogout }) {
 
       <Divider sx={{ borderColor: '#1e293b' }} />
 
-      {/* Nav */}
+      {/* ── Nav ── */}
       <List sx={{ px: 1, py: 1.5, flexGrow: 1 }} disablePadding>
         {NAV_ITEMS.map((item) => {
-          const active = activePath === item.path || (item.path !== '/' && activePath.startsWith(item.path))
+          const active = activePath === item.path ||
+            (item.path !== '/' && activePath.startsWith(item.path))
+
           const btn = (
             <ListItem key={item.label} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
@@ -98,7 +102,11 @@ export default function Sidebar({ onLogout }) {
                   minHeight: 42,
                   justifyContent: collapsed ? 'center' : 'flex-start',
                   backgroundColor: active ? 'rgba(59,91,219,0.18)' : 'transparent',
-                  '&:hover': { backgroundColor: active ? 'rgba(59,91,219,0.22)' : 'rgba(255,255,255,0.05)' },
+                  '&:hover': {
+                    backgroundColor: active
+                      ? 'rgba(59,91,219,0.22)'
+                      : 'rgba(255,255,255,0.05)',
+                  },
                   '&.Mui-disabled': { opacity: 0.35 },
                 }}
               >
@@ -136,7 +144,7 @@ export default function Sidebar({ onLogout }) {
 
       <Divider sx={{ borderColor: '#1e293b' }} />
 
-      {/* Logout */}
+      {/* ── Logout ── */}
       <Box sx={{ p: 1 }}>
         <Tooltip title="Đăng xuất" placement="right">
           <ListItemButton
@@ -149,7 +157,9 @@ export default function Sidebar({ onLogout }) {
               '&:hover': { backgroundColor: 'rgba(220,38,38,0.12)' },
             }}
           >
-            <ListItemIcon sx={{ minWidth: 0, mr: collapsed ? 0 : 1.5, color: '#64748b', '& svg': { fontSize: 20 } }}>
+            <ListItemIcon
+              sx={{ minWidth: 0, mr: collapsed ? 0 : 1.5, color: '#64748b', '& svg': { fontSize: 20 } }}
+            >
               <LogoutIcon />
             </ListItemIcon>
             {!collapsed && (
@@ -162,13 +172,16 @@ export default function Sidebar({ onLogout }) {
         </Tooltip>
       </Box>
 
-      {/* Collapse toggle */}
+      {/* ── Collapse toggle ── */}
       <Box sx={{ display: 'flex', justifyContent: collapsed ? 'center' : 'flex-end', p: 1 }}>
         <Tooltip title={collapsed ? 'Mở rộng' : 'Thu gọn'} placement="right">
           <IconButton
             size="small"
             onClick={() => setCollapsed(c => !c)}
-            sx={{ color: '#475569', '&:hover': { color: '#94a3b8', backgroundColor: 'rgba(255,255,255,0.05)' } }}
+            sx={{
+              color: '#475569',
+              '&:hover': { color: '#94a3b8', backgroundColor: 'rgba(255,255,255,0.05)' },
+            }}
           >
             {collapsed ? <ChevronRightIcon fontSize="small" /> : <ChevronLeftIcon fontSize="small" />}
           </IconButton>
