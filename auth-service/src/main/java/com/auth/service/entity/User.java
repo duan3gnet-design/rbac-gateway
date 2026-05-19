@@ -21,11 +21,21 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Column
+    private String email;
+
+    @Column
+    private String fullName;
+
+    @Column
+    private String provider;
+
+    @Column(nullable = false)
+    private boolean enabled = true;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id"))
-    private Set<Role> roles = new HashSet<>();@Column
-    private String provider;
-    private String fullName;
+    private Set<Role> roles = new HashSet<>();
 }

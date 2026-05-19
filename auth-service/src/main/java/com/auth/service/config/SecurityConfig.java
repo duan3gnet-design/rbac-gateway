@@ -45,6 +45,7 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // ── Public auth endpoints ──────────────────────────────
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/auth/register",
@@ -57,7 +58,12 @@ public class SecurityConfig {
                                 "/oauth2/**",
                                 "/actuator/**"
                         ).permitAll()
+                        // ── Internal service-to-service ───────────────────────
                         .requestMatchers("/internal/**").authenticated()
+                        // ── Admin API (RBAC check via @PreAuthorize) ──────────
+                        // Cần authenticated() ở đây; role check xử lý bởi @PreAuthorize
+                        .requestMatchers("/api/auth/admin/**").authenticated()
+                        // ── Everything else ───────────────────────────────────
                         .anyRequest().authenticated())
                 .oauth2Login(oauth2 -> oauth2
                         .successHandler(oAuth2LoginSuccessHandler)
@@ -70,6 +76,11 @@ public class SecurityConfig {
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                             response.setContentType("application/json");
                             response.getWriter().write("{\"error\": \"Unauthorized\"}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\": \"Access denied — ROLE_ADMIN required\"}");
                         }))
                 .addFilterBefore(gatewayAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();

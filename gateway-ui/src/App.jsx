@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ThemeProvider } from '@mui/material/styles'
 import CssBaseline from '@mui/material/CssBaseline'
@@ -7,14 +7,15 @@ import theme from './theme/muiTheme'
 import Sidebar from './components/layout/Sidebar'
 import RoutesPage from './pages/RoutesPage'
 import RateLimitPage from './pages/RateLimitPage'
+import PermissionsPage from './pages/PermissionsPage'
+import UsersPage from './pages/UsersPage'
 import LoginPage from './pages/LoginPage'
 import './index.css'
 
 export default function App() {
   const [token, setToken] = useState(() => localStorage.getItem('access_token'))
 
-  const handleLogin = (newToken) => setToken(newToken)
-
+  const handleLogin  = (newToken) => setToken(newToken)
   const handleLogout = () => {
     localStorage.removeItem('access_token')
     setToken(null)
@@ -37,9 +38,11 @@ export default function App() {
           <Sidebar onLogout={handleLogout} />
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
             <Routes>
-              <Route path="/" element={<Navigate to="/routes" replace />} />
-              <Route path="/routes" element={<RoutesPage />} />
+              <Route path="/"            element={<Navigate to="/routes" replace />} />
+              <Route path="/routes"      element={<RoutesPage />} />
               <Route path="/rate-limits" element={<RateLimitPage />} />
+              <Route path="/permissions" element={<PermissionsPage />} />
+              <Route path="/users"       element={<UsersPage />} />
             </Routes>
           </Box>
         </Box>

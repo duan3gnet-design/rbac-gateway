@@ -195,7 +195,6 @@ logging:
     org.springframework.cloud.gateway: WARN
     org.springframework.cloud.loadbalancer: WARN
     io.github.resilience4j: WARN
-    com.api.gateway.route: WARN
     com.netflix.discovery: WARN
     com.netflix.eureka: WARN
     io.opentelemetry: WARN

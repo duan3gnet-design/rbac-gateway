@@ -27,6 +27,9 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                         .authorities(user.getRoles().stream()
                                 .map(role -> new SimpleGrantedAuthority(role.getName()))
                                 .collect(Collectors.toSet()))
+                        // Khi admin disable user → Spring Security tự ném DisabledException
+                        // tại login, và GatewayAuthFilter sẽ set auth với disabled principal
+                        .disabled(!user.isEnabled())
                         .build())
                 .orElseThrow(() ->
                         new UsernameNotFoundException("User not found: " + username));

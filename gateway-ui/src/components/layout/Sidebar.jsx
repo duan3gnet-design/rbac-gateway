@@ -19,15 +19,15 @@ const NAV_ITEMS = [
   { label: 'Dashboard',   icon: <DashboardIcon />, path: '/',            disabled: true  },
   { label: 'Routes',      icon: <RouteIcon />,     path: '/routes',      disabled: false },
   { label: 'Rate Limit',  icon: <SpeedIcon />,     path: '/rate-limits', disabled: false },
-  { label: 'Permissions', icon: <ShieldIcon />,    path: '/permissions', disabled: true  },
-  { label: 'Users',       icon: <PeopleIcon />,    path: '/users',       disabled: true  },
+  { label: 'Permissions', icon: <ShieldIcon />,    path: '/permissions', disabled: false },
+  { label: 'Users',       icon: <PeopleIcon />,    path: '/users',       disabled: false },
   { label: 'Settings',    icon: <SettingsIcon />,  path: '/settings',    disabled: true  },
 ]
 
 export default function Sidebar({ onLogout }) {
   const [collapsed, setCollapsed] = useState(false)
-  const location = useLocation()
-  const navigate = useNavigate()
+  const location  = useLocation()
+  const navigate  = useNavigate()
   const activePath = location.pathname
   const width = collapsed ? 64 : 240
 
@@ -85,7 +85,7 @@ export default function Sidebar({ onLogout }) {
       {/* Nav */}
       <List sx={{ px: 1, py: 1.5, flexGrow: 1 }} disablePadding>
         {NAV_ITEMS.map((item) => {
-          const active = activePath === item.path
+          const active = activePath === item.path || (item.path !== '/' && activePath.startsWith(item.path))
           const btn = (
             <ListItem key={item.label} disablePadding sx={{ mb: 0.5 }}>
               <ListItemButton
