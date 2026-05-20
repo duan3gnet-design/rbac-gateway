@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,15 +30,19 @@ public class FallbackController {
     @RequestMapping("/auth")
     public ResponseEntity<Map<String, Object>> authFallback(HttpServletRequest request) {
         log.warn("[CircuitBreaker] Fallback triggered for auth-service: {}", request.getRequestURI());
-        circuitBreakerFallbackCounter.increment();
         return buildFallbackResponse("auth-service", request.getRequestURI());
     }
 
     @RequestMapping("/resource")
     public ResponseEntity<Map<String, Object>> resourceFallback(HttpServletRequest request) {
         log.warn("[CircuitBreaker] Fallback triggered for resource-service: {}", request.getRequestURI());
-        circuitBreakerFallbackCounter.increment();
         return buildFallbackResponse("resource-service", request.getRequestURI());
+    }
+
+    @RequestMapping("/service/{serviceName}")
+    public ResponseEntity<Map<String, Object>> fallback(HttpServletRequest request, @PathVariable String serviceName) {
+        log.warn("[CircuitBreaker] Fallback triggered for {}: {}", serviceName, request.getRequestURI());
+        return buildFallbackResponse(serviceName, request.getRequestURI());
     }
 
     private ResponseEntity<Map<String, Object>> buildFallbackResponse(String serviceName, String path) {
@@ -47,6 +52,8 @@ public class FallbackController {
         body.put("message", "Service '" + serviceName + "' is currently unavailable. Please try again later.");
         body.put("timestamp", Instant.now().toString());
         body.put("path", path);
+
+        circuitBreakerFallbackCounter.increment();
 
         return ResponseEntity
                 .status(HttpStatus.SERVICE_UNAVAILABLE)

@@ -6,7 +6,6 @@ import com.auth.service.dto.ClaimsResponse;
 import io.micrometer.core.instrument.Counter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -44,8 +43,7 @@ public class JwtAuthenticationFilter implements HandlerInterceptor {
 
     private static final List<String> PUBLIC_PATHS = List.of(
             "/error",
-            "/fallback/auth",
-            "/fallback/resource",
+            "/fallback/**",
             "/actuator/**",
             "/api/auth/login",
             "/api/auth/register",
@@ -60,7 +58,7 @@ public class JwtAuthenticationFilter implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request,
                              @NonNull HttpServletResponse response,
-                             @NonNull Object handler) throws Exception {
+                             @NonNull Object handler) {
         String path   = request.getRequestURI();
         String method = request.getMethod();
 
