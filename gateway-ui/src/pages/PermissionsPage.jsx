@@ -16,9 +16,11 @@ import { usePermissions } from '../hooks/usePermissions'
 
 export default function PermissionsPage() {
   const {
-    permissions, loading, saving, error,
-    loadPermissions, createPermission, updatePermission, deletePermission,
-    roleSet, resourceSet,
+    permissions, resources, actions,
+    loading, saving, error,
+    loadPermissions,
+    createPermission, updatePermission, deletePermission,
+    roleSet,
   } = usePermissions()
 
   const [formOpen, setFormOpen]         = useState(false)
@@ -58,31 +60,26 @@ export default function PermissionsPage() {
     }
   }
 
-  // ── Stats ──────────────────────────────────────────────────────────────────
-  const totalRoles     = roleSet.length
-  const totalResources = resourceSet.length
-
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
 
-      {/* ── Page Header ── */}
+      {/* ── Header ── */}
       <Box sx={{ px: 4, pt: 3.5, pb: 2.5, backgroundColor: '#fff', borderBottom: '1px solid #e2e8f0' }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 2 }}>
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-              <Box
-                sx={{
-                  width: 36, height: 36, borderRadius: 2,
-                  background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
-              >
+              <Box sx={{
+                width: 36, height: 36, borderRadius: 2,
+                background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
                 <ShieldIcon sx={{ color: '#fff', fontSize: 20 }} />
               </Box>
               <Typography variant="h5">Permission Management</Typography>
             </Box>
             <Typography variant="body2" color="text.secondary">
-              Quản lý permissions RBAC — định nghĩa quyền truy cập theo cú pháp <code>resource:ACTION</code> và gán cho role.
+              Quản lý permissions RBAC — định nghĩa quyền truy cập theo cú pháp{' '}
+              <code>resource:ACTION</code> và gán cho role.
             </Typography>
           </Box>
 
@@ -112,12 +109,27 @@ export default function PermissionsPage() {
           </Box>
         </Box>
 
-        {/* Stats bar */}
+        {/* Stats */}
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           {[
-            { label: 'Tổng permissions', value: permissions.length, color: '#7c3aed', bg: '#f3e8ff', icon: <ShieldIcon sx={{ fontSize: 14 }} /> },
-            { label: 'Roles',            value: totalRoles,         color: '#3b5bdb', bg: '#eef2ff', icon: <GroupWorkIcon sx={{ fontSize: 14 }} /> },
-            { label: 'Resources',        value: totalResources,     color: '#0284c7', bg: '#e0f2fe', icon: <CategoryIcon sx={{ fontSize: 14 }} /> },
+            {
+              label: 'Tổng permissions',
+              value: permissions.length,
+              color: '#7c3aed', bg: '#f3e8ff',
+              icon: <ShieldIcon sx={{ fontSize: 14 }} />,
+            },
+            {
+              label: 'Roles',
+              value: roleSet.length,
+              color: '#3b5bdb', bg: '#eef2ff',
+              icon: <GroupWorkIcon sx={{ fontSize: 14 }} />,
+            },
+            {
+              label: 'Resources',
+              value: resources.length,
+              color: '#0284c7', bg: '#e0f2fe',
+              icon: <CategoryIcon sx={{ fontSize: 14 }} />,
+            },
           ].map(({ label, value, color, bg, icon }) => (
             <Paper
               key={label}
@@ -173,7 +185,8 @@ export default function PermissionsPage() {
         initialData={editTarget}
         saving={saving}
         roleSet={roleSet}
-        resourceSet={resourceSet}
+        resources={resources}
+        actions={actions}
       />
 
       <PermissionDeleteDialog
