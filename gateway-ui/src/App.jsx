@@ -7,9 +7,10 @@ import theme from './theme/muiTheme'
 import Sidebar from './components/layout/Sidebar'
 import RoutesPage from './pages/RoutesPage'
 import RateLimitPage from './pages/RateLimitPage'
+import ResourcesPage from './pages/ResourcesPage'
+import RolesPage from './pages/RolesPage'
 import PermissionsPage from './pages/PermissionsPage'
 import UsersPage from './pages/UsersPage'
-import ResourcesPage from './pages/ResourcesPage'
 import LoginPage from './pages/LoginPage'
 import './index.css'
 
@@ -42,9 +43,10 @@ export default function App() {
               <Route path="/"            element={<Navigate to="/routes" replace />} />
               <Route path="/routes"      element={<RoutesPage />} />
               <Route path="/rate-limits" element={<RateLimitPage />} />
+              <Route path="/resources"   element={<ResourcesPage />} />
+              <Route path="/roles"       element={<RolesPage />} />
               <Route path="/permissions" element={<PermissionsPage />} />
               <Route path="/users"       element={<UsersPage />} />
-              <Route path="/resources"   element={<ResourcesPage />} />
             </Routes>
           </Box>
         </Box>
