@@ -1,0 +1,9 @@
+{
+  "reflection": [
+    {
+      "type": "[Ljava.util.UUID;",
+      "allDeclaredConstructors": true,
+      "unsafeAllocated": true
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: rbac-resource
+
+  # ==================== NATIVE IMAGE ====================
+  cloud:
+    refresh:
+      enabled: false
+    compatibility-verifier:
+      enabled: false
+
+  datasource:
+    url: ${RESOURCE_DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/rbac_resource}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  flyway:
+    enabled: false   # Migration chạy từ module riêng
+
+# ==================== EUREKA CLIENT ====================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    fetch-registry: true
+    register-with-eureka: true
+    registry-fetch-interval-seconds: 15
+    refresh:
+      enable: false
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+    health-check-url-path: /actuator/health
+
+app:
+  auth-service:
+    url: ${AUTH_SERVICE_URL:http://localhost:8081}
+  internal:
+    secret: ${INTERNAL_SECRET:changeme-internal-secret}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, mappings, metrics, prometheus
+  endpoint:
+    health:
+      show-details: always
+
+  tracing:
+    sampling:
+      probability: 1.0
+
+  opentelemetry:
+    resource-attributes:
+      service.name: ${spring.application.name}
+
+  otlp:
+    metrics:
+      export:
+        enabled: false
+
+tracing:
+  success-rate: 1.0
+  excluded-paths:
+    - /actuator
+    - /favicon.ico
+    - /eureka
+  export:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+
+logging:
+  level:
+    root: INFO
+    com.netflix.discovery: WARN
+    com.netflix.eureka: WARN

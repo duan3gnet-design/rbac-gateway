@@ -1,0 +1,192 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+    instance-id: ${spring.application.name}:${random.uuid}
+  main:
+    web-application-type: servlet
+
+  # ==================== VIRTUAL THREAD ====================
+  threads:
+    virtual:
+      enabled: true
+
+  # ==================== NATIVE IMAGE ====================
+  # Tắt RefreshScope — CGLIB dynamic proxy không tương thích GraalVM AOT.
+  # Config được load từ env vars lúc khởi động, không cần runtime refresh.
+  cloud:
+    refresh:
+      enabled: false
+    compatibility-verifier:
+      enabled: false
+    # ==================== GATEWAY MVC ====================
+    gateway:
+      mvc:
+        trusted-proxies: ".*"
+    # ==================== LOAD BALANCER ====================
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 10s
+        capacity: 256
+      configurations: default
+      health-check:
+        initial-delay: 0
+        interval: 10s
+        refetch-instances-interval: 25s
+
+  # ==================== DATASOURCE (HikariCP) ====================
+  datasource:
+    url: ${GATEWAY_DB_URL:jdbc:postgresql://localhost:5432/rbac_gateway}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD}
+    hikari:
+      minimum-idle: 10
+      maximum-pool-size: 50
+      idle-timeout: 1800000
+      connection-timeout: 3000
+
+  # ==================== REDIS ====================
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      connect-timeout: 2s
+      timeout: 3s
+      lettuce:
+        pool:
+          min-idle: 4
+          max-idle: 16
+          max-active: 32
+
+# ==================== EUREKA CLIENT ====================
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
+    fetch-registry: true
+    register-with-eureka: true
+    registry-fetch-interval-seconds: 10
+    # Tắt refresh scope cho Eureka config beans — bắt buộc với native image
+    refresh:
+      enable: false
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+    health-check-url-path: /actuator/health
+
+# ==================== JWT ====================
+jwt:
+  secret: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=
+
+# ==================== GATEWAY ROUTE REFRESH ====================
+gateway:
+  route-refresh:
+    channel: gateway:route-refresh
+
+# ==================== RATE LIMIT ====================
+rate-limit:
+  replenish-rate: 200000
+  burst-capacity: 400000
+  allow-on-redis-failure: true
+  excluded-paths:
+    - /api/auth/login
+    - /api/auth/register
+    - /api/auth/refresh
+    - /api/auth/logout
+    - /api/auth/google
+    - /oauth2/**
+    - /login/oauth2/**
+    - /actuator/**
+    - /error
+
+# ==================== RESILIENCE4J ====================
+resilience4j:
+  circuitbreaker:
+    instances:
+      fastOpenCB:
+        sliding-window-size: 50
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        slow-call-duration-threshold: 2000ms
+        slow-call-rate-threshold: 60
+        minimum-number-of-calls: 10
+      slowOpenCB:
+        sliding-window-size: 100
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 5s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        slow-call-duration-threshold: 9000ms
+        slow-call-rate-threshold: 60
+        minimum-number-of-calls: 10
+  timelimiter:
+    instances:
+      fastOpenCB:
+        timeout-duration: 3s
+      slowOpenCB:
+        timeout-duration: 5s
+
+# ==================== ACTUATOR ====================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, gateway, circuitbreakers, circuitbreakerevents, retryevents, prometheus, metrics, info, mappings
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+    prometheus:
+      enabled: true
+  health:
+    circuitbreakers:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms, 100ms, 200ms, 500ms, 1s
+  tracing:
+    sampling:
+      probability: 1.0
+  opentelemetry:
+    resource-attributes:
+      service.name: ${spring.application.name}
+  otlp:
+    metrics:
+      export:
+        enabled: false
+
+tracing:
+  success-rate: 0.1
+  excluded-paths:
+    - /actuator
+    - /favicon.ico
+    - /eureka
+  export:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+
+# ==================== LOGGING ====================
+logging:
+  level:
+    root: INFO
+    org.springframework.cloud.gateway: WARN
+    org.springframework.cloud.loadbalancer: WARN
+    io.github.resilience4j: WARN
+    com.api.gateway.route: WARN
+    com.netflix.discovery: WARN
+    com.netflix.eureka: WARN
+    io.opentelemetry: WARN
+    io.micrometer.tracing: WARN

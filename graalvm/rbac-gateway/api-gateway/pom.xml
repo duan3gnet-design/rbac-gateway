@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.api.gateway</groupId>
+        <artifactId>rbac-gateway</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>api-gateway</artifactId>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <wiremock.version>3.9.1</wiremock.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
+        <gateway.mvc.version>5.0.1</gateway.mvc.version>
+    </properties>
+
+    <dependencies>
+
+        <!-- ─── MAIN ─────────────────────────────────────────────────────── -->
+        <!--
+            Gateway MVC (WebMVC + Virtual Thread thay thế WebFlux Reactive).
+        -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway-server-webmvc</artifactId>
+            <version>${gateway.mvc.version}</version>
+        </dependency>
+        <!--
+            Circuit Breaker blocking (không phải Reactor-Resilience4j).
+        -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
+        </dependency>
+        <!--
+            Eureka Client — đăng ký api-gateway vào Service Registry và
+            fetch danh sách instances để LoadBalancer có dữ liệu routing.
+        -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+        <!--
+            Spring Cloud LoadBalancer — khai báo tường minh để rõ dependency.
+            Cung cấp LoadBalancerClient (blocking) với các algorithm:
+              RoundRobinLoadBalancer (default), RandomLoadBalancer.
+            Tích hợp Caffeine cache để không gọi Eureka mỗi request.
+            Đã được kéo theo bởi eureka-client, khai báo lại để pin version
+            và tránh bị exclude nhầm.
+        -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+        <!--
+            Caffeine — backing cache cho LoadBalancer ServiceInstanceListSupplier.
+            Không có Caffeine, LoadBalancer fallback về ConcurrentHashMap không có TTL.
+        -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!--
+            Redis blocking (Lettuce) — dùng cho Rate Limit Lua script.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <!--
+            commons-pool2 BẮT BUỘC để Lettuce connection pool hoạt động.
+        -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-pool2</artifactId>
+        </dependency>
+        <!--
+            JDBC thay R2DBC — Virtual Thread không cần non-blocking driver.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.13.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.13.0</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.13.0</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.auth.service</groupId>
+            <artifactId>auth-service</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <!--
+                provided: class cần lúc compile nhưng không đưa vào fat jar.
+                Quan trọng với GraalVM AOT: nếu scope=compile, AOT processor
+                thấy AuthServiceApplication trên classpath và cố generate
+                ApplicationContextInitializer cho nó → conflict với initializer
+                của api-gateway, gây lỗi “AOT initializer could not be found”.
+                Giải pháp dứt điểm: nên move các class dùng chung (JWT util,
+                security model) sang một module riêng thay vì depend vào cả app.
+            -->
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- ─── OBSERVABILITY + EUREKA (dùng chung từ common-observability) ──────── -->
+        <dependency>
+            <groupId>org.api.gateway</groupId>
+            <artifactId>common-observability</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- ─── Eureka đã có trong common, giữ eureka-client riêng nếu cần override config gateway ─ -->
+
+        <!-- ─── TEST ──────────────────────────────────────────────────────── -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>${wiremock.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.api.gateway.GatewayApplication</mainClass>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.graalvm.buildtools</groupId>
+                <artifactId>native-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.api.gateway.GatewayApplication</mainClass>
+                    <imageName>api-gateway</imageName>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>
+                        @{argLine}
+                        -XX:+EnableDynamicAgentLoading
+                        --add-opens java.base/java.lang=ALL-UNNAMED
+                        --add-opens java.base/java.util=ALL-UNNAMED
+                        --add-opens java.base/java.lang.reflect=ALL-UNNAMED
+                    </argLine>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
