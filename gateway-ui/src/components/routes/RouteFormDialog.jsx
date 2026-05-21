@@ -492,7 +492,7 @@ export default function RouteFormDialog({ open, onClose, onSave, initialData, sa
           {/* ── URI ── */}
           <Grid size={12}>
             <TextField
-              label="Upstream URI"
+              label="Downstream URI"
               value={form.uri}
               onChange={set('uri')}
               error={Boolean(errors.uri)}

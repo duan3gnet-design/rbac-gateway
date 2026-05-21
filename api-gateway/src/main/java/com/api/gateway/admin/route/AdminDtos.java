@@ -44,10 +44,9 @@ public final class AdminDtos {
 
     // ─── Permission ─────────────────────────────────────────────────────────
 
-    /** Permission hiển thị trên UI */
+    /** Permission hiển thị trên UI — role đã được bỏ, quản lý qua role_permissions */
     public record PermissionResponse(
             Long id,
-            String role,
             String resource,
             String action,
             String code           // = "resource:action"

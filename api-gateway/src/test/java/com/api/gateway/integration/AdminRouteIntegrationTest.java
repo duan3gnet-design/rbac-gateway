@@ -376,19 +376,10 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
         @Test @Order(43)
         @DisplayName("PUT uri mới → Gateway reload và proxy request đến uri mới")
         void updateRoute_newUri_gatewayShouldProxyToNewUri() {
-            // ── Arrange ──────────────────────────────────────────────────────
-            // Dùng path "/api/resources/products/uri-test/**" vì:
-            //   1. RbacPermissionChecker đã có rule:
-            //      GET /api/resources/products/** → "products:READ"
-            //   2. userJwt() có permission "products:READ" → JwtAuthenticationFilter pass
-            //   3. Dùng sub-path "/uri-test/**" để không conflict với seeded routes
-            //      (seeded "resource-service" match "/api/resources/**", order=6)
-            //   4. Route test này dùng order=1 → đứng trên seeded route → được match trước
             final String TEST_PATH    = "/api/resources/products/uri-test/**";
             final String REQUEST_PATH = "/api/resources/products/uri-test/ping";
             final String ROUTE_ID     = "uri-update-test";
 
-            // Spin up WireMock thứ 2 — đại diện cho "upstream mới sau khi update"
             WireMockServer newUpstream = new WireMockServer(
                     WireMockConfiguration.wireMockConfig().dynamicPort());
             newUpstream.start();
@@ -397,7 +388,6 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                 String oldUpstreamUri = "http://localhost:" + wireMock.port();
                 String newUpstreamUri = "http://localhost:" + newUpstream.port();
 
-                // Stub cả 2 WireMock — cùng path, khác body để phân biệt ai đang serve
                 wireMock.stubFor(get(urlPathEqualTo(REQUEST_PATH))
                         .willReturn(aResponse()
                                 .withStatus(200)
@@ -410,7 +400,6 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                                 .withHeader("Content-Type", "application/json")
                                 .withBody("{\"from\":\"new-upstream\"}")));
 
-                // Tạo route trỏ vào old upstream, order=1 để override seeded routes
                 webClient.post().uri("/api/admin/routes")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -427,8 +416,6 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                         .exchange()
                         .expectStatus().isEqualTo(HttpStatus.CREATED);
 
-                // ── Act 1: verify proxy đến old upstream ─────────────────────
-                // userJwt() có "products:READ" → hasPermission() pass → 200
                 webClient.get().uri(REQUEST_PATH)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userJwt())
                         .exchange()
@@ -436,10 +423,6 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                         .expectBody()
                         .jsonPath("$.from").isEqualTo("old-upstream");
 
-                // ── Act 2: PUT uri → trỏ sang new upstream ───────────────────
-                // Sau khi PUT thành công, AdminRouteService publish RouteRefreshEvent
-                // synchronously → DatabaseRouteLocator.onRefreshRoutes() nullify cache
-                // → request tiếp theo sẽ reload() từ DB với URI đã cập nhật
                 webClient.put().uri("/api/admin/routes/" + ROUTE_ID)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -458,7 +441,6 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                         .expectBody()
                         .jsonPath("$.uri").isEqualTo(newUpstreamUri);
 
-                // ── Assert: Gateway proxy đến new upstream ────────────────────
                 webClient.get().uri(REQUEST_PATH)
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + userJwt())
                         .exchange()
@@ -466,9 +448,8 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                         .expectBody()
                         .jsonPath("$.from").isEqualTo("new-upstream");
 
-                // Mỗi upstream nhận đúng 1 request — không nhầm lẫn sau khi update
-                wireMock.verify(1,      getRequestedFor(urlPathEqualTo(REQUEST_PATH)));
-                newUpstream.verify(1,   getRequestedFor(urlPathEqualTo(REQUEST_PATH)));
+                wireMock.verify(1,    getRequestedFor(urlPathEqualTo(REQUEST_PATH)));
+                newUpstream.verify(1, getRequestedFor(urlPathEqualTo(REQUEST_PATH)));
 
             } finally {
                 newUpstream.stop();
@@ -709,7 +690,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test @Order(81)
-        @DisplayName("GET /api/admin/permissions — mỗi permission có đủ field")
+        @DisplayName("GET /api/admin/permissions — mỗi permission có đủ field (không có role)")
         void getAllPermissions_eachShouldHaveRequiredFields() {
             webClient.get().uri("/api/admin/permissions")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
@@ -717,7 +698,6 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
                     .expectStatus().isOk()
                     .expectBody()
                     .jsonPath("$[0].id").exists()
-                    .jsonPath("$[0].role").exists()
                     .jsonPath("$[0].resource").exists()
                     .jsonPath("$[0].action").exists()
                     .jsonPath("$[0].code").exists();
@@ -736,16 +716,17 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
         }
 
         @Test @Order(83)
-        @DisplayName("GET /api/admin/permissions — có cả ROLE_ADMIN và ROLE_USER permissions")
-        void getAllPermissions_shouldContainBothRoles() {
+        @DisplayName("GET /api/admin/permissions — response không chứa field role")
+        void getAllPermissions_shouldNotContainRoleField() {
             webClient.get().uri("/api/admin/permissions")
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + adminJwt())
                     .exchange()
                     .expectStatus().isOk()
                     .expectBody(new ParameterizedTypeReference<List<Map<String, Object>>>() {})
                     .value(perms -> {
-                        assertTrue(perms.stream().anyMatch(p -> "ROLE_ADMIN".equals(p.get("role"))));
-                        assertTrue(perms.stream().anyMatch(p -> "ROLE_USER".equals(p.get("role"))));
+                        assertFalse(perms.isEmpty());
+                        perms.forEach(p -> assertFalse(p.containsKey("role"),
+                                "Permission response không được có field 'role'"));
                     });
         }
 

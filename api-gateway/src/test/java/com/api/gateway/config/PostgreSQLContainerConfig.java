@@ -84,10 +84,9 @@ public class PostgreSQLContainerConfig {
 
                 CREATE TABLE IF NOT EXISTS permissions (
                     id          BIGSERIAL    PRIMARY KEY,
-                    role        VARCHAR(100) NOT NULL,
                     resource_id BIGINT       NOT NULL REFERENCES resources(id),
                     action_id   BIGINT       NOT NULL REFERENCES actions(id),
-                    UNIQUE (role, resource_id, action_id)
+                    UNIQUE (resource_id, action_id)
                 );
 
                 CREATE TABLE IF NOT EXISTS route_permissions (
@@ -153,23 +152,18 @@ public class PostgreSQLContainerConfig {
                 VALUES ('READ'), ('CREATE'), ('UPDATE'), ('DELETE'), ('LOGOUT_ALL')
                 ON CONFLICT (name) DO NOTHING;
 
-                -- ── Seed: permissions ────────────────────────────────────────────────
+                -- ── Seed: permissions (resource + action, không có role) ─────────────
 
-                INSERT INTO permissions (role, resource_id, action_id)
-                SELECT 'ROLE_ADMIN', r.id, a.id
+                INSERT INTO permissions (resource_id, action_id)
+                SELECT r.id, a.id
                 FROM resources r, actions a
                 WHERE r.name IN ('products','orders','users','profile','admin')
                   AND a.name IN ('READ','CREATE','UPDATE','DELETE')
                 ON CONFLICT DO NOTHING;
 
-                INSERT INTO permissions (role, resource_id, action_id)
-                VALUES
-                    ('ROLE_USER', (SELECT id FROM resources WHERE name='products'), (SELECT id FROM actions WHERE name='READ')),
-                    ('ROLE_USER', (SELECT id FROM resources WHERE name='orders'),   (SELECT id FROM actions WHERE name='READ')),
-                    ('ROLE_USER', (SELECT id FROM resources WHERE name='orders'),   (SELECT id FROM actions WHERE name='CREATE')),
-                    ('ROLE_USER', (SELECT id FROM resources WHERE name='profile'),  (SELECT id FROM actions WHERE name='READ')),
-                    ('ROLE_USER', (SELECT id FROM resources WHERE name='profile'),  (SELECT id FROM actions WHERE name='UPDATE')),
-                    ('ROLE_USER', (SELECT id FROM resources WHERE name='auth'),     (SELECT id FROM actions WHERE name='LOGOUT_ALL'))
+                INSERT INTO permissions (resource_id, action_id)
+                SELECT (SELECT id FROM resources WHERE name='auth'),
+                       (SELECT id FROM actions WHERE name='LOGOUT_ALL')
                 ON CONFLICT DO NOTHING;
 
                 -- ── Seed: gateway_routes ─────────────────────────────────────────────
@@ -325,8 +319,7 @@ public class PostgreSQLContainerConfig {
                     SELECT p.id FROM permissions p
                     JOIN resources res ON res.id = p.resource_id
                     JOIN actions   a   ON a.id   = p.action_id
-                    WHERE res.name = 'products' AND a.name = 'READ' AND p.role = 'ROLE_USER'
-                ) AS p
+                    WHERE res.name = 'products' AND a.name = 'READ'                ) AS p
                 ON CONFLICT DO NOTHING;
                 
                 -- Orders — GET
@@ -339,8 +332,7 @@ public class PostgreSQLContainerConfig {
                     SELECT p.id FROM permissions p
                     JOIN resources res ON res.id = p.resource_id
                     JOIN actions   a   ON a.id   = p.action_id
-                    WHERE res.name = 'orders' AND a.name = 'READ' AND p.role = 'ROLE_USER'
-                ) AS p
+                    WHERE res.name = 'orders' AND a.name = 'READ'                ) AS p
                 ON CONFLICT DO NOTHING;
                 
                 -- Orders — POST (CREATE)
@@ -353,8 +345,7 @@ public class PostgreSQLContainerConfig {
                     SELECT p.id FROM permissions p
                     JOIN resources res ON res.id = p.resource_id
                     JOIN actions   a   ON a.id   = p.action_id
-                    WHERE res.name = 'orders' AND a.name = 'CREATE' AND p.role = 'ROLE_USER'
-                ) AS p
+                    WHERE res.name = 'orders' AND a.name = 'CREATE'                ) AS p
                 ON CONFLICT DO NOTHING;
                 
                 -- Orders — PUT (UPDATE)
@@ -363,8 +354,7 @@ public class PostgreSQLContainerConfig {
                 FROM permissions p
                 JOIN resources res ON res.id = p.resource_id
                 JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'orders' AND a.name = 'UPDATE' AND p.role = 'ROLE_USER'
-                ON CONFLICT DO NOTHING;
+                WHERE res.name = 'orders' AND a.name = 'UPDATE'                ON CONFLICT DO NOTHING;
                 
                 -- Orders — DELETE
                 INSERT INTO route_permissions (route_id, permission_id)
@@ -372,8 +362,7 @@ public class PostgreSQLContainerConfig {
                 FROM permissions p
                 JOIN resources res ON res.id = p.resource_id
                 JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'orders' AND a.name = 'DELETE' AND p.role = 'ROLE_USER'
-                ON CONFLICT DO NOTHING;
+                WHERE res.name = 'orders' AND a.name = 'DELETE'                ON CONFLICT DO NOTHING;
                 
                 -- Admin Users — GET
                 INSERT INTO route_permissions (route_id, permission_id)
@@ -385,8 +374,7 @@ public class PostgreSQLContainerConfig {
                     SELECT p.id FROM permissions p
                     JOIN resources res ON res.id = p.resource_id
                     JOIN actions   a   ON a.id   = p.action_id
-                    WHERE res.name = 'users' AND a.name = 'READ' AND p.role = 'ROLE_ADMIN'
-                ) AS p
+                    WHERE res.name = 'users' AND a.name = 'READ'                ) AS p
                 ON CONFLICT DO NOTHING;
                 
                 -- Admin Users — POST (CREATE)
@@ -395,8 +383,7 @@ public class PostgreSQLContainerConfig {
                 FROM permissions p
                 JOIN resources res ON res.id = p.resource_id
                 JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'users' AND a.name = 'CREATE' AND p.role = 'ROLE_ADMIN'
-                ON CONFLICT DO NOTHING;
+                WHERE res.name = 'users' AND a.name = 'CREATE'                ON CONFLICT DO NOTHING;
                 
                 -- Admin Users — PUT (UPDATE)
                 INSERT INTO route_permissions (route_id, permission_id)
@@ -404,8 +391,7 @@ public class PostgreSQLContainerConfig {
                 FROM permissions p
                 JOIN resources res ON res.id = p.resource_id
                 JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'users' AND a.name = 'UPDATE' AND p.role = 'ROLE_ADMIN'
-                ON CONFLICT DO NOTHING;
+                WHERE res.name = 'users' AND a.name = 'UPDATE'                ON CONFLICT DO NOTHING;
                 
                 -- Admin Users — DELETE
                 INSERT INTO route_permissions (route_id, permission_id)
@@ -413,8 +399,7 @@ public class PostgreSQLContainerConfig {
                 FROM permissions p
                 JOIN resources res ON res.id = p.resource_id
                 JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'users' AND a.name = 'DELETE' AND p.role = 'ROLE_ADMIN'
-                ON CONFLICT DO NOTHING;
+                WHERE res.name = 'users' AND a.name = 'DELETE'                ON CONFLICT DO NOTHING;
                 
                 -- Profile — GET (READ)
                 INSERT INTO route_permissions (route_id, permission_id)
@@ -422,8 +407,7 @@ public class PostgreSQLContainerConfig {
                 FROM permissions p
                 JOIN resources res ON res.id = p.resource_id
                 JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'profile' AND a.name = 'READ' AND p.role = 'ROLE_USER'
-                ON CONFLICT DO NOTHING;
+                WHERE res.name = 'profile' AND a.name = 'READ'                ON CONFLICT DO NOTHING;
                 
                 -- Profile — PUT (UPDATE)
                 INSERT INTO route_permissions (route_id, permission_id)
@@ -431,8 +415,7 @@ public class PostgreSQLContainerConfig {
                 FROM permissions p
                 JOIN resources res ON res.id = p.resource_id
                 JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'profile' AND a.name = 'UPDATE' AND p.role = 'ROLE_USER'
-                ON CONFLICT DO NOTHING;
+                WHERE res.name = 'profile' AND a.name = 'UPDATE'                ON CONFLICT DO NOTHING;
 
                 -- auth-logout-all → ROLE_USER auth:LOGOUT_ALL
                 
@@ -441,8 +424,7 @@ public class PostgreSQLContainerConfig {
                 FROM permissions p
                 JOIN resources r ON r.id = p.resource_id
                 JOIN actions   a ON a.id = p.action_id
-                WHERE r.name = 'auth' AND a.name = 'LOGOUT_ALL' AND p.role = 'ROLE_USER'
-                ON CONFLICT DO NOTHING;
+                WHERE r.name = 'auth' AND a.name = 'LOGOUT_ALL'                ON CONFLICT DO NOTHING;
 
                 -- ── Seed: rate_limit_config ──────────────────────────────────────────
 

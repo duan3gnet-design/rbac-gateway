@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Drawer, Box, Typography, Divider, IconButton,
-  Checkbox, FormControlLabel, Button, CircularProgress,
+  Checkbox, Button, CircularProgress,
   Chip, TextField, InputAdornment, Alert,
 } from '@mui/material'
 import CloseIcon from '@mui/icons-material/Close'
@@ -9,9 +9,13 @@ import ShieldIcon from '@mui/icons-material/ShieldRounded'
 import SearchIcon from '@mui/icons-material/SearchRounded'
 import SaveIcon from '@mui/icons-material/SaveRounded'
 
-const ROLE_COLORS = {
-  ROLE_ADMIN: { bg: '#ede9fe', color: '#7c3aed' },
-  ROLE_USER:  { bg: '#e0f2fe', color: '#0284c7' },
+const RESOURCE_COLORS = {
+  products: { bg: '#e0f2fe', color: '#0284c7' },
+  orders:   { bg: '#dcfce7', color: '#16a34a' },
+  users:    { bg: '#ede9fe', color: '#7c3aed' },
+  profile:  { bg: '#fef3c7', color: '#d97706' },
+  admin:    { bg: '#fee2e2', color: '#dc2626' },
+  auth:     { bg: '#f1f5f9', color: '#475569' },
 }
 
 export default function RoutePermissionPanel({ open, onClose, route, permissions, onSave, saving }) {
@@ -38,13 +42,17 @@ export default function RoutePermissionPanel({ open, onClose, route, permissions
     setDirty(true)
   }
 
-  // Group permissions by role
+  const q = search.toLowerCase()
   const filtered = permissions.filter(p =>
-    p.code.toLowerCase().includes(search.toLowerCase()) ||
-    p.role.toLowerCase().includes(search.toLowerCase())
+    !q ||
+    p.code?.toLowerCase().includes(q) ||
+    p.resource?.toLowerCase().includes(q) ||
+    p.action?.toLowerCase().includes(q)
   )
+
   const grouped = filtered.reduce((acc, p) => {
-    ;(acc[p.role] = acc[p.role] ?? []).push(p)
+    const key = p.resource ?? 'other'
+    ;(acc[key] = acc[key] ?? []).push(p)
     return acc
   }, {})
 
@@ -77,7 +85,6 @@ export default function RoutePermissionPanel({ open, onClose, route, permissions
         sx: { width: 420, backgroundColor: '#fff', display: 'flex', flexDirection: 'column' },
       }}
     >
-      {/* Header */}
       <Box
         sx={{
           px: 3, py: 2.5,
@@ -108,10 +115,9 @@ export default function RoutePermissionPanel({ open, onClose, route, permissions
         </IconButton>
       </Box>
 
-      {/* Search */}
       <Box sx={{ px: 2.5, pt: 2, pb: 1 }}>
         <TextField
-          placeholder="Tìm permission..."
+          placeholder="Tìm theo code, resource, action..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           fullWidth
@@ -142,7 +148,6 @@ export default function RoutePermissionPanel({ open, onClose, route, permissions
 
       <Divider />
 
-      {/* Permission list grouped by role */}
       <Box sx={{ flex: 1, overflow: 'auto', px: 2.5, py: 1.5 }}>
         {Object.keys(grouped).length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -151,22 +156,24 @@ export default function RoutePermissionPanel({ open, onClose, route, permissions
             </Typography>
           </Box>
         ) : (
-          Object.entries(grouped).map(([role, perms]) => {
-            const roleColor = ROLE_COLORS[role] ?? { bg: '#f1f5f9', color: '#475569' }
+          Object.entries(grouped)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([resource, perms]) => {
+            const resColor = RESOURCE_COLORS[resource] ?? { bg: '#f1f5f9', color: '#475569' }
             const allChecked = perms.every(p => selected.has(p.id))
             return (
-              <Box key={role} sx={{ mb: 2.5 }}>
-                {/* Role header */}
+              <Box key={resource} sx={{ mb: 2.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                   <Chip
-                    label={role}
+                    label={resource}
                     size="small"
                     sx={{
-                      backgroundColor: roleColor.bg,
-                      color: roleColor.color,
+                      backgroundColor: resColor.bg,
+                      color: resColor.color,
                       fontWeight: 700,
                       fontSize: '0.7rem',
                       height: 22,
+                      fontFamily: "'JetBrains Mono', monospace",
                     }}
                   />
                   <Button
@@ -178,7 +185,6 @@ export default function RoutePermissionPanel({ open, onClose, route, permissions
                   </Button>
                 </Box>
 
-                {/* Permission checkboxes */}
                 <Box
                   sx={{
                     border: '1px solid #e2e8f0',
@@ -222,7 +228,7 @@ export default function RoutePermissionPanel({ open, onClose, route, permissions
                           {p.code}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {p.resource} · {p.action}
+                          {p.action}
                         </Typography>
                       </Box>
                       {selected.has(p.id) && (
@@ -244,7 +250,6 @@ export default function RoutePermissionPanel({ open, onClose, route, permissions
 
       <Divider />
 
-      {/* Footer actions */}
       <Box sx={{ px: 2.5, py: 2 }}>
         {dirty && (
           <Alert severity="info" sx={{ mb: 1.5, borderRadius: 2, py: 0.5, fontSize: '0.78rem' }}>

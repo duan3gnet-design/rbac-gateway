@@ -1,18 +1,16 @@
 /**
- * Mock data phản ánh đúng schema GatewayRouteEntity + RBAC.
- * Swap sang routeApi.getAll() khi backend sẵn sàng.
+ * Mock data phản ánh schema GatewayRouteEntity + RBAC.
+ * Permission = resource + action (không có role). Role gán qua auth role_permissions.
  */
 
 export const MOCK_PERMISSIONS = [
-  { id: 1, role: 'ROLE_ADMIN', resource: 'products', action: 'READ',   code: 'products:READ' },
-  { id: 2, role: 'ROLE_ADMIN', resource: 'products', action: 'CREATE', code: 'products:CREATE' },
-  { id: 3, role: 'ROLE_ADMIN', resource: 'orders',   action: 'READ',   code: 'orders:READ' },
-  { id: 4, role: 'ROLE_ADMIN', resource: 'users',    action: 'READ',   code: 'users:READ' },
-  { id: 5, role: 'ROLE_USER',  resource: 'products', action: 'READ',   code: 'products:READ' },
-  { id: 6, role: 'ROLE_USER',  resource: 'orders',   action: 'READ',   code: 'orders:READ' },
-  { id: 7, role: 'ROLE_USER',  resource: 'orders',   action: 'CREATE', code: 'orders:CREATE' },
-  { id: 8, role: 'ROLE_USER',  resource: 'profile',  action: 'READ',   code: 'profile:READ' },
-  { id: 9, role: 'ROLE_USER',  resource: 'profile',  action: 'UPDATE', code: 'profile:UPDATE' },
+  { id: 1, resource: 'products', action: 'READ',   code: 'products:READ' },
+  { id: 2, resource: 'products', action: 'CREATE', code: 'products:CREATE' },
+  { id: 3, resource: 'orders',   action: 'READ',   code: 'orders:READ' },
+  { id: 4, resource: 'users',    action: 'READ',   code: 'users:READ' },
+  { id: 5, resource: 'orders',   action: 'CREATE', code: 'orders:CREATE' },
+  { id: 6, resource: 'profile',  action: 'READ',   code: 'profile:READ' },
+  { id: 7, resource: 'profile',  action: 'UPDATE', code: 'profile:UPDATE' },
 ]
 
 export const MOCK_ROUTES = [
@@ -78,7 +76,7 @@ export const MOCK_ROUTES = [
     filters: '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource"}}]',
     routeOrder: 10,
     enabled: true,
-    permissionIds: [5, 6, 7, 8, 9],
+    permissionIds: [1, 3, 5, 6, 7],
     createdAt: '2024-01-01T00:00:00Z',
     updatedAt: '2024-01-01T00:00:00Z',
   },

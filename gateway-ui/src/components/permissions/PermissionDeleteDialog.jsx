@@ -51,7 +51,7 @@ export default function PermissionDeleteDialog({ open, onClose, onConfirm, permi
               {code}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {permission.role} · {permission.resource} · {permission.action}
+              {permission.resource} · {permission.action}
             </Typography>
           </Box>
         </Box>

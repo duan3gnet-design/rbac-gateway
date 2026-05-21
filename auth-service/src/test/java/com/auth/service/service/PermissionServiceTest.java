@@ -50,7 +50,7 @@ class PermissionServiceTest {
         @Test
         @DisplayName("Trả đúng set permission theo format resource:action")
         void shouldReturnFormattedPermissions() {
-            when(permissionRepository.findByRoles(List.of("ROLE_USER")))
+            when(permissionRepository.findByRoleNames(List.of("ROLE_USER")))
                     .thenReturn(List.of(
                             permission("products", "READ"),
                             permission("orders", "READ"),
@@ -66,7 +66,7 @@ class PermissionServiceTest {
         @Test
         @DisplayName("Role không có permission nào → trả empty set")
         void noPermissions_shouldReturnEmpty() {
-            when(permissionRepository.findByRoles(List.of("ROLE_GUEST")))
+            when(permissionRepository.findByRoleNames(List.of("ROLE_GUEST")))
                     .thenReturn(List.of());
 
             Set<String> result = permissionService.getPermissions(List.of("ROLE_GUEST"));
@@ -77,7 +77,7 @@ class PermissionServiceTest {
         @Test
         @DisplayName("Multiple roles → tổng hợp tất cả permissions")
         void multipleRoles_shouldAggregatePermissions() {
-            when(permissionRepository.findByRoles(List.of("ROLE_USER", "ROLE_ADMIN")))
+            when(permissionRepository.findByRoleNames(List.of("ROLE_USER", "ROLE_ADMIN")))
                     .thenReturn(List.of(
                             permission("products", "READ"),
                             permission("users", "DELETE")
@@ -91,7 +91,7 @@ class PermissionServiceTest {
         @Test
         @DisplayName("Duplicate permissions từ DB → Set tự deduplicate")
         void duplicatePermissions_shouldBeDeduplicated() {
-            when(permissionRepository.findByRoles(any()))
+            when(permissionRepository.findByRoleNames(any()))
                     .thenReturn(List.of(
                             permission("orders", "READ"),
                             permission("orders", "READ") // duplicate
