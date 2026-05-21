@@ -24,7 +24,7 @@ public class AdminPermissionService {
     private final PermissionRepository permissionRepository;
     private final ResourceRepository   resourceRepository;
     private final ActionRepository     actionRepository;
-    private final PermissionService    permissionService; // để evict cache
+    private final PermissionService    permissionService;
 
     // ─── Read ─────────────────────────────────────────────────────────────────
 
@@ -50,21 +50,17 @@ public class AdminPermissionService {
         Resource resource = resolveResource(req.resource());
         Action   action   = resolveAction(req.action());
 
-        if (permissionRepository.existsByRoleAndResourceIdAndActionId(
-                req.role(), resource.getId(), action.getId())) {
+        if (permissionRepository.existsByResourceIdAndActionId(resource.getId(), action.getId())) {
             throw new IllegalArgumentException(
-                    "Permission already exists: %s on %s:%s"
-                            .formatted(req.role(), req.resource(), req.action()));
+                    "Permission already exists: %s:%s".formatted(req.resource(), req.action()));
         }
 
         Permission p = new Permission();
-        p.setRole(req.role().toUpperCase().startsWith("ROLE_")
-                ? req.role() : "ROLE_" + req.role());
         p.setResource(resource);
         p.setAction(action);
 
         Permission saved = permissionRepository.save(p);
-        log.info("[Admin] Created permission id={} role={} {}:{}", saved.getId(), saved.getRole(),
+        log.info("[Admin] Created permission id={} {}:{}", saved.getId(),
                 resource.getName(), action.getName());
 
         permissionService.evictAllPermissions();
@@ -81,22 +77,20 @@ public class AdminPermissionService {
         Resource resource = resolveResource(req.resource());
         Action   action   = resolveAction(req.action());
 
-        // Check duplicate (excluding self)
-        permissionRepository.findByRoleAndResourceIdAndActionId(req.role(), resource.getId(), action.getId())
+        permissionRepository.findByResourceIdAndActionId(resource.getId(), action.getId())
                 .ifPresent(existing -> {
                     if (!existing.getId().equals(id)) {
                         throw new IllegalArgumentException(
-                                "Duplicate permission: %s on %s:%s"
-                                        .formatted(req.role(), req.resource(), req.action()));
+                                "Duplicate permission: %s:%s".formatted(req.resource(), req.action()));
                     }
                 });
 
-        p.setRole(req.role());
         p.setResource(resource);
         p.setAction(action);
 
         Permission saved = permissionRepository.save(p);
-        log.info("[Admin] Updated permission id={}", id);
+        log.info("[Admin] Updated permission id={} → {}:{}", id,
+                resource.getName(), action.getName());
 
         permissionService.evictAllPermissions();
         return toResponse(saved);
@@ -116,10 +110,6 @@ public class AdminPermissionService {
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
-    /**
-     * Tìm Resource theo tên, nếu chưa tồn tại thì tạo mới (upsert).
-     * Giúp admin tạo permission với resource mới mà không cần migration.
-     */
     private Resource resolveResource(String name) {
         String normalized = name.trim().toLowerCase();
         return resourceRepository.findByName(normalized)
@@ -131,9 +121,6 @@ public class AdminPermissionService {
                 });
     }
 
-    /**
-     * Tìm Action theo tên, nếu chưa tồn tại thì tạo mới (upsert).
-     */
     private Action resolveAction(String name) {
         String normalized = name.trim().toUpperCase();
         return actionRepository.findByName(normalized)
@@ -145,17 +132,14 @@ public class AdminPermissionService {
                 });
     }
 
-    private PermissionResponse toResponse(Permission p) {
+    public PermissionResponse toResponse(Permission p) {
         String resourceName = p.getResource().getName();
         String actionName   = p.getAction().getName();
-        String code         = resourceName + ":" + actionName;
         return new PermissionResponse(
                 p.getId(),
-                p.getRole(),
                 resourceName,
                 actionName,
-                code,
-                null   // description field — schema chưa có, để null
+                resourceName + ":" + actionName
         );
     }
 }

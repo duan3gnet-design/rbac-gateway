@@ -11,13 +11,18 @@ import java.util.Optional;
 @Repository
 public interface PermissionRepository extends JpaRepository<Permission, Long> {
 
+    /**
+     * Lấy permissions của user dựa trên danh sách role names.
+     * Join qua role_permissions → roles.
+     */
     @Query("""
-        SELECT p FROM Permission p
+        SELECT DISTINCT p FROM Permission p
         JOIN FETCH p.resource
         JOIN FETCH p.action
-        WHERE p.role IN :roles
+        JOIN p.roles r
+        WHERE r.name IN :roleNames
     """)
-    List<Permission> findByRoles(List<String> roles);
+    List<Permission> findByRoleNames(List<String> roleNames);
 
     @Query("""
         SELECT p FROM Permission p
@@ -34,7 +39,7 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
     """)
     List<Permission> findAllByResourceId(Long resourceId);
 
-    boolean existsByRoleAndResourceIdAndActionId(String role, Long resourceId, Long actionId);
+    boolean existsByResourceIdAndActionId(Long resourceId, Long actionId);
 
-    Optional<Permission> findByRoleAndResourceIdAndActionId(String role, Long resourceId, Long actionId);
+    Optional<Permission> findByResourceIdAndActionId(Long resourceId, Long actionId);
 }

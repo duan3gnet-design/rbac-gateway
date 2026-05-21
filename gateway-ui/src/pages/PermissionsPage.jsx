@@ -6,8 +6,8 @@ import {
 import AddIcon from '@mui/icons-material/AddRounded'
 import RefreshIcon from '@mui/icons-material/RefreshRounded'
 import ShieldIcon from '@mui/icons-material/ShieldRounded'
-import GroupWorkIcon from '@mui/icons-material/GroupWorkRounded'
 import CategoryIcon from '@mui/icons-material/CategoryRounded'
+import BoltIcon from '@mui/icons-material/BoltRounded'
 
 import PermissionTable from '../components/permissions/PermissionTable'
 import PermissionFormDialog from '../components/permissions/PermissionFormDialog'
@@ -20,7 +20,6 @@ export default function PermissionsPage() {
     loading, saving, error,
     loadPermissions,
     createPermission, updatePermission, deletePermission,
-    roleSet,
   } = usePermissions()
 
   const [formOpen, setFormOpen]         = useState(false)
@@ -28,8 +27,7 @@ export default function PermissionsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
 
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' })
-  const toast = (message, severity = 'success') =>
-    setSnack({ open: true, message, severity })
+  const toast = (message, severity = 'success') => setSnack({ open: true, message, severity })
 
   const handleOpenCreate = () => { setEditTarget(null); setFormOpen(true) }
   const handleOpenEdit   = (perm) => { setEditTarget(perm); setFormOpen(true) }
@@ -78,32 +76,21 @@ export default function PermissionsPage() {
               <Typography variant="h5">Permission Management</Typography>
             </Box>
             <Typography variant="body2" color="text.secondary">
-              Quản lý permissions RBAC — định nghĩa quyền truy cập theo cú pháp{' '}
-              <code>resource:ACTION</code> và gán cho role.
+              Định nghĩa permissions theo cú pháp <code>resource:ACTION</code> — gán cho role qua trang{' '}
+              <strong>Roles</strong>.
             </Typography>
           </Box>
 
           <Box sx={{ display: 'flex', gap: 1.5 }}>
             <Button
-              variant="outlined"
-              size="small"
-              onClick={loadPermissions}
-              disabled={loading}
-              startIcon={
-                loading
-                  ? <CircularProgress size={14} color="inherit" />
-                  : <RefreshIcon sx={{ fontSize: 16 }} />
-              }
+              variant="outlined" size="small"
+              onClick={loadPermissions} disabled={loading}
+              startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon sx={{ fontSize: 16 }} />}
               sx={{ borderColor: '#e2e8f0', color: '#475569' }}
             >
               Tải lại
             </Button>
-            <Button
-              variant="contained"
-              size="small"
-              onClick={handleOpenCreate}
-              startIcon={<AddIcon />}
-            >
+            <Button variant="contained" size="small" onClick={handleOpenCreate} startIcon={<AddIcon />}>
               Thêm Permission
             </Button>
           </Box>
@@ -112,42 +99,17 @@ export default function PermissionsPage() {
         {/* Stats */}
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           {[
-            {
-              label: 'Tổng permissions',
-              value: permissions.length,
-              color: '#7c3aed', bg: '#f3e8ff',
-              icon: <ShieldIcon sx={{ fontSize: 14 }} />,
-            },
-            {
-              label: 'Roles',
-              value: roleSet.length,
-              color: '#3b5bdb', bg: '#eef2ff',
-              icon: <GroupWorkIcon sx={{ fontSize: 14 }} />,
-            },
-            {
-              label: 'Resources',
-              value: resources.length,
-              color: '#0284c7', bg: '#e0f2fe',
-              icon: <CategoryIcon sx={{ fontSize: 14 }} />,
-            },
+            { label: 'Permissions', value: permissions.length, color: '#7c3aed', bg: '#f3e8ff', icon: <ShieldIcon sx={{ fontSize: 14 }} /> },
+            { label: 'Resources',   value: resources.length,   color: '#0284c7', bg: '#e0f2fe', icon: <CategoryIcon sx={{ fontSize: 14 }} /> },
+            { label: 'Actions',     value: actions.length,     color: '#d97706', bg: '#fef3c7', icon: <BoltIcon sx={{ fontSize: 14 }} /> },
           ].map(({ label, value, color, bg, icon }) => (
-            <Paper
-              key={label}
-              elevation={0}
-              sx={{
-                display: 'flex', alignItems: 'center', gap: 1,
-                px: 2, py: 1, borderRadius: 2,
-                border: '1px solid #e2e8f0',
-                backgroundColor: bg,
-              }}
-            >
+            <Paper key={label} elevation={0} sx={{
+              display: 'flex', alignItems: 'center', gap: 1,
+              px: 2, py: 1, borderRadius: 2, border: '1px solid #e2e8f0', backgroundColor: bg,
+            }}>
               <Box sx={{ color, display: 'flex' }}>{icon}</Box>
-              <Typography variant="h6" sx={{ color, fontWeight: 700, lineHeight: 1 }}>
-                {value}
-              </Typography>
-              <Typography variant="caption" sx={{ color, opacity: 0.75 }}>
-                {label}
-              </Typography>
+              <Typography variant="h6" sx={{ color, fontWeight: 700, lineHeight: 1 }}>{value}</Typography>
+              <Typography variant="caption" sx={{ color, opacity: 0.75 }}>{label}</Typography>
             </Paper>
           ))}
         </Box>
@@ -156,19 +118,11 @@ export default function PermissionsPage() {
       {/* ── Content ── */}
       <Box sx={{ flex: 1, px: 4, py: 3, overflow: 'auto' }}>
         {error && (
-          <Alert
-            severity="error"
-            sx={{ mb: 2, borderRadius: 2 }}
-            action={
-              <Button size="small" color="inherit" onClick={loadPermissions}>
-                Thử lại
-              </Button>
-            }
-          >
+          <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}
+            action={<Button size="small" color="inherit" onClick={loadPermissions}>Thử lại</Button>}>
             {error}
           </Alert>
         )}
-
         <PermissionTable
           permissions={permissions}
           loading={loading}
@@ -184,7 +138,6 @@ export default function PermissionsPage() {
         onSave={handleSaveForm}
         initialData={editTarget}
         saving={saving}
-        roleSet={roleSet}
         resources={resources}
         actions={actions}
       />
@@ -197,18 +150,14 @@ export default function PermissionsPage() {
         saving={saving}
       />
 
-      {/* ── Snackbar ── */}
       <Snackbar
-        open={snack.open}
-        autoHideDuration={3500}
+        open={snack.open} autoHideDuration={3500}
         onClose={() => setSnack(s => ({ ...s, open: false }))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
-        <Alert
-          severity={snack.severity}
+        <Alert severity={snack.severity}
           onClose={() => setSnack(s => ({ ...s, open: false }))}
-          sx={{ borderRadius: 2, boxShadow: 3 }}
-        >
+          sx={{ borderRadius: 2, boxShadow: 3 }}>
           {snack.message}
         </Alert>
       </Snackbar>

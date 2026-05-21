@@ -21,12 +21,16 @@ public class PermissionService {
     private final PermissionRepository permissionRepository;
     private final Lock lock = new ReentrantLock();
 
-    @Cacheable(value = "permissions", key = "#roles.toString()")
-    public Set<String> getPermissions(List<String> roles) {
-        log.debug("[Cache MISS] Loading permissions from DB for roles: {}", roles);
+    /**
+     * Lấy tập permission codes (resource:ACTION) cho danh sách role names.
+     * Kết quả được cache theo key = sorted role names.
+     */
+    @Cacheable(value = "permissions", key = "#roleNames.toString()")
+    public Set<String> getPermissions(List<String> roleNames) {
+        log.debug("[Cache MISS] Loading permissions from DB for roles: {}", roleNames);
         lock.lock();
         try {
-            return permissionRepository.findByRoles(roles)
+            return permissionRepository.findByRoleNames(roleNames)
                     .stream()
                     .map(p -> p.getResource().getName() + ":" + p.getAction().getName())
                     .collect(Collectors.toSet());
@@ -37,13 +41,11 @@ public class PermissionService {
         }
     }
 
-    // Gọi khi role của user thay đổi
-    @CacheEvict(value = "permissions", key = "#roles.toString()")
-    public void evictPermissions(List<String> roles) {
-        log.info("[Cache EVICT] Evicted permissions cache for roles: {}", roles);
+    @CacheEvict(value = "permissions", key = "#roleNames.toString()")
+    public void evictPermissions(List<String> roleNames) {
+        log.info("[Cache EVICT] Evicted permissions cache for roles: {}", roleNames);
     }
 
-    // Xóa toàn bộ cache permissions (dùng khi admin cập nhật RBAC)
     @CacheEvict(value = "permissions", allEntries = true)
     public void evictAllPermissions() {
         log.info("[Cache EVICT] Evicted ALL permissions cache");

@@ -20,8 +20,7 @@ export function useRoles() {
       setRoles(rolesRes.data)
       setPermissions(
         [...permsRes.data].sort((a, b) => {
-          const r = a.role.localeCompare(b.role)
-          return r !== 0 ? r : a.code.localeCompare(b.code)
+          return a.code.localeCompare(b.code)
         })
       )
     } catch (e) {

@@ -24,7 +24,6 @@ export default function RoleAssignDialog({
   const [selected, setSelected] = useState(new Set())
   const [search, setSearch]     = useState('')
 
-  // Khởi tạo selected từ permissions đang có của role
   useEffect(() => {
     if (!open || !role) return
     setSearch('')
@@ -36,7 +35,6 @@ export default function RoleAssignDialog({
     return allPermissions.filter(p =>
       !q ||
       p.code.toLowerCase().includes(q) ||
-      p.role.toLowerCase().includes(q) ||
       p.resource.toLowerCase().includes(q) ||
       p.action.toLowerCase().includes(q)
     )
@@ -50,11 +48,11 @@ export default function RoleAssignDialog({
     })
 
   const toggleAll = () => {
-    const filteredIds = filtered.map(p => p.id)
-    const allChecked  = filteredIds.every(id => selected.has(id))
+    const ids = filtered.map(p => p.id)
+    const allChecked = ids.every(id => selected.has(id))
     setSelected(prev => {
       const next = new Set(prev)
-      filteredIds.forEach(id => allChecked ? next.delete(id) : next.add(id))
+      ids.forEach(id => allChecked ? next.delete(id) : next.add(id))
       return next
     })
   }
@@ -69,7 +67,7 @@ export default function RoleAssignDialog({
   const isAdmin     = role.name.includes('ADMIN')
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ pb: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{
@@ -82,21 +80,16 @@ export default function RoleAssignDialog({
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="h6">Gán Permissions</Typography>
-              <Chip
-                label={role.name}
-                size="small"
-                sx={{
-                  backgroundColor: isAdmin ? '#f3e8ff' : '#f1f5f9',
-                  color: isAdmin ? '#7c3aed' : '#475569',
-                  fontFamily: "'JetBrains Mono', monospace",
-                  fontSize: '0.72rem', fontWeight: 700, height: 22,
-                  '& .MuiChip-label': { px: '8px' },
-                }}
-              />
+              <Chip label={role.name} size="small" sx={{
+                backgroundColor: isAdmin ? '#f3e8ff' : '#f1f5f9',
+                color: isAdmin ? '#7c3aed' : '#475569',
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: '0.72rem', fontWeight: 700, height: 22,
+                '& .MuiChip-label': { px: '8px' },
+              }} />
             </Box>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-              Chọn permissions muốn gán cho role này — đã chọn{' '}
-              <strong>{selected.size}</strong> / {allPermissions.length}
+              Đã chọn <strong>{selected.size}</strong> / {allPermissions.length} permissions
             </Typography>
           </Box>
         </Box>
@@ -105,14 +98,13 @@ export default function RoleAssignDialog({
       <Divider />
 
       <DialogContent sx={{ p: 0 }}>
-        {/* Search bar */}
+        {/* Search */}
         <Box sx={{ px: 3, py: 1.5, borderBottom: '1px solid #f1f5f9' }}>
           <TextField
-            placeholder="Tìm permission (code, role, resource, action)..."
+            placeholder="Tìm permission (code, resource, action)..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            size="small"
-            fullWidth
+            size="small" fullWidth
             slotProps={{
               input: {
                 startAdornment: (
@@ -125,8 +117,7 @@ export default function RoleAssignDialog({
           />
         </Box>
 
-        {/* Permission table */}
-        <TableContainer sx={{ maxHeight: 420 }}>
+        <TableContainer sx={{ maxHeight: 400 }}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
@@ -139,7 +130,6 @@ export default function RoleAssignDialog({
                   />
                 </TableCell>
                 <TableCell>Permission Code</TableCell>
-                <TableCell>Role gốc</TableCell>
                 <TableCell>Resource</TableCell>
                 <TableCell>Action</TableCell>
               </TableRow>
@@ -147,7 +137,7 @@ export default function RoleAssignDialog({
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 4 }}>
+                  <TableCell colSpan={4} align="center" sx={{ py: 4 }}>
                     <Typography variant="body2" color="text.secondary">
                       Không tìm thấy permission nào
                     </Typography>
@@ -155,15 +145,10 @@ export default function RoleAssignDialog({
                 </TableRow>
               ) : (
                 filtered.map(perm => {
-                  const [, action] = (perm.code ?? '').split(':')
-                  const cfg = ACTION_COLORS[action] ?? { bg: '#f1f5f9', color: '#475569' }
+                  const cfg = ACTION_COLORS[perm.action] ?? { bg: '#f1f5f9', color: '#475569' }
                   const isSelected = selected.has(perm.id)
-
                   return (
-                    <TableRow
-                      key={perm.id}
-                      hover
-                      onClick={() => toggle(perm.id)}
+                    <TableRow key={perm.id} hover onClick={() => toggle(perm.id)}
                       sx={{
                         cursor: 'pointer',
                         backgroundColor: isSelected ? '#f0fdf4' : 'transparent',
@@ -171,41 +156,20 @@ export default function RoleAssignDialog({
                       }}
                     >
                       <TableCell padding="checkbox" sx={{ pl: 2 }}>
-                        <Checkbox
-                          size="small"
-                          checked={isSelected}
+                        <Checkbox size="small" checked={isSelected} color="success"
                           onChange={() => toggle(perm.id)}
-                          onClick={e => e.stopPropagation()}
-                          color="success"
-                        />
+                          onClick={e => e.stopPropagation()} />
                       </TableCell>
 
                       <TableCell>
                         <Typography sx={{
                           fontFamily: "'JetBrains Mono', monospace",
-                          fontSize: '0.78rem', fontWeight: 700,
-                          color: '#475569',
-                          backgroundColor: '#f8fafc',
-                          border: '1px solid #e2e8f0',
-                          borderRadius: 1, px: 1, py: 0.25,
-                          display: 'inline-block',
+                          fontSize: '0.78rem', fontWeight: 700, color: '#475569',
+                          backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
+                          borderRadius: 1, px: 1, py: 0.25, display: 'inline-block',
                         }}>
                           {perm.code}
                         </Typography>
-                      </TableCell>
-
-                      <TableCell>
-                        <Chip
-                          label={perm.role}
-                          size="small"
-                          sx={{
-                            backgroundColor: perm.role.includes('ADMIN') ? '#f3e8ff' : '#f1f5f9',
-                            color: perm.role.includes('ADMIN') ? '#7c3aed' : '#64748b',
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontSize: '0.63rem', fontWeight: 600, height: 20,
-                            '& .MuiChip-label': { px: '6px' },
-                          }}
-                        />
                       </TableCell>
 
                       <TableCell>
@@ -218,16 +182,12 @@ export default function RoleAssignDialog({
                       </TableCell>
 
                       <TableCell>
-                        <Chip
-                          label={perm.action}
-                          size="small"
-                          sx={{
-                            backgroundColor: cfg.bg, color: cfg.color,
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontSize: '0.63rem', fontWeight: 700, height: 20,
-                            '& .MuiChip-label': { px: '7px' },
-                          }}
-                        />
+                        <Chip label={perm.action} size="small" sx={{
+                          backgroundColor: cfg.bg, color: cfg.color,
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontSize: '0.63rem', fontWeight: 700, height: 20,
+                          '& .MuiChip-label': { px: '7px' },
+                        }} />
                       </TableCell>
                     </TableRow>
                   )
@@ -244,13 +204,8 @@ export default function RoleAssignDialog({
           Đã chọn <strong>{selected.size}</strong> permissions
         </Typography>
         <Button onClick={onClose} disabled={saving} color="inherit">Hủy</Button>
-        <Button
-          variant="contained"
-          color="success"
-          onClick={handleSave}
-          disabled={saving}
-          startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <KeyIcon sx={{ fontSize: 16 }} />}
-        >
+        <Button variant="contained" color="success" onClick={handleSave} disabled={saving}
+          startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <KeyIcon sx={{ fontSize: 16 }} />}>
           {saving ? 'Đang lưu...' : 'Lưu Permissions'}
         </Button>
       </DialogActions>

@@ -9,7 +9,6 @@ import {
 import EditIcon from '@mui/icons-material/EditRounded'
 import DeleteIcon from '@mui/icons-material/DeleteRounded'
 import SearchIcon from '@mui/icons-material/SearchRounded'
-import FilterListIcon from '@mui/icons-material/FilterListRounded'
 import ShieldIcon from '@mui/icons-material/ShieldRounded'
 
 const ACTION_COLORS = {
@@ -24,44 +23,18 @@ const ACTION_COLORS = {
 function ActionChip({ action }) {
   const cfg = ACTION_COLORS[action] ?? { bg: '#f1f5f9', color: '#475569' }
   return (
-    <Chip
-      label={action}
-      size="small"
-      sx={{
-        backgroundColor: cfg.bg,
-        color: cfg.color,
-        fontSize: '0.65rem',
-        height: 20,
-        fontWeight: 700,
-        '& .MuiChip-label': { px: '8px' },
-      }}
-    />
-  )
-}
-
-function RoleChip({ role }) {
-  const isAdmin = role?.toUpperCase().includes('ADMIN')
-  return (
-    <Chip
-      label={role}
-      size="small"
-      sx={{
-        backgroundColor: isAdmin ? '#f3e8ff' : '#f1f5f9',
-        color: isAdmin ? '#7c3aed' : '#475569',
-        fontSize: '0.68rem',
-        height: 20,
-        fontWeight: 600,
-        fontFamily: "'JetBrains Mono', monospace",
-        '& .MuiChip-label': { px: '8px' },
-      }}
-    />
+    <Chip label={action} size="small" sx={{
+      backgroundColor: cfg.bg, color: cfg.color,
+      fontSize: '0.65rem', height: 20, fontWeight: 700,
+      '& .MuiChip-label': { px: '8px' },
+    }} />
   )
 }
 
 function SkeletonRows({ count = 6 }) {
   return Array.from({ length: count }).map((_, i) => (
     <TableRow key={i}>
-      {[100, 130, 140, 120, 80, 90].map((w, j) => (
+      {[120, 140, 120, 90].map((w, j) => (
         <TableCell key={j}>
           <Skeleton variant="rounded" width={w} height={20} sx={{ borderRadius: 1 }} />
         </TableCell>
@@ -72,33 +45,27 @@ function SkeletonRows({ count = 6 }) {
 
 export default function PermissionTable({ permissions, loading, onEdit, onDelete }) {
   const [search, setSearch]             = useState('')
-  const [filterRole, setFilterRole]     = useState('all')
   const [filterAction, setFilterAction] = useState('all')
 
-  const roles   = useMemo(() => [...new Set(permissions.map(p => p.role))].sort(), [permissions])
-  const actions = useMemo(() => [...new Set(permissions.map(p => p.action))].sort(), [permissions])
+  const actions  = useMemo(() => [...new Set(permissions.map(p => p.action))].sort(), [permissions])
 
-  const filtered = useMemo(() => {
-    return permissions.filter(p => {
-      const q = search.toLowerCase()
-      const matchSearch =
-        !q ||
-        p.role.toLowerCase().includes(q) ||
-        p.resource.toLowerCase().includes(q) ||
-        p.action.toLowerCase().includes(q) ||
-        (p.code ?? '').toLowerCase().includes(q)
-      const matchRole   = filterRole   === 'all' || p.role   === filterRole
-      const matchAction = filterAction === 'all' || p.action === filterAction
-      return matchSearch && matchRole && matchAction
-    })
-  }, [permissions, search, filterRole, filterAction])
+  const filtered = useMemo(() => permissions.filter(p => {
+    const q = search.toLowerCase()
+    const matchSearch =
+      !q ||
+      p.resource.toLowerCase().includes(q) ||
+      p.action.toLowerCase().includes(q) ||
+      (p.code ?? '').toLowerCase().includes(q)
+    const matchAction = filterAction === 'all' || p.action === filterAction
+    return matchSearch && matchAction
+  }), [permissions, search, filterAction])
 
   return (
     <Box>
       {/* ── Toolbar ── */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <TextField
-          placeholder="Tìm theo role, resource, action..."
+          placeholder="Tìm theo resource, action, code..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           size="small"
@@ -113,19 +80,6 @@ export default function PermissionTable({ permissions, loading, onEdit, onDelete
             },
           }}
         />
-
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel>Role</InputLabel>
-          <Select
-            value={filterRole}
-            label="Role"
-            onChange={e => setFilterRole(e.target.value)}
-            startAdornment={<FilterListIcon sx={{ fontSize: 16, color: '#94a3b8', mr: 0.5 }} />}
-          >
-            <MenuItem value="all">Tất cả</MenuItem>
-            {roles.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-          </Select>
-        </FormControl>
 
         <FormControl size="small" sx={{ minWidth: 130 }}>
           <InputLabel>Action</InputLabel>
@@ -145,19 +99,14 @@ export default function PermissionTable({ permissions, loading, onEdit, onDelete
       </Box>
 
       {/* ── Table ── */}
-      <TableContainer
-        component={Paper}
-        elevation={0}
-        sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden' }}
-      >
+      <TableContainer component={Paper} elevation={0}
+        sx={{ border: '1px solid #e2e8f0', borderRadius: 3, overflow: 'hidden' }}>
         <Table size="small">
           <TableHead>
             <TableRow>
-              <TableCell>Role</TableCell>
               <TableCell>Resource</TableCell>
               <TableCell>Action</TableCell>
               <TableCell>Permission Code</TableCell>
-              <TableCell>Mô tả</TableCell>
               <TableCell align="right">Hành động</TableCell>
             </TableRow>
           </TableHead>
@@ -167,7 +116,7 @@ export default function PermissionTable({ permissions, loading, onEdit, onDelete
               <SkeletonRows count={6} />
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
                   <ShieldIcon sx={{ fontSize: 36, color: '#e2e8f0', mb: 1, display: 'block', mx: 'auto' }} />
                   <Typography variant="body2" color="text.secondary">
                     Không tìm thấy permission nào
@@ -178,19 +127,10 @@ export default function PermissionTable({ permissions, loading, onEdit, onDelete
               filtered.map((perm) => (
                 <TableRow key={perm.id}>
                   <TableCell>
-                    <RoleChip role={perm.role} />
-                  </TableCell>
-
-                  <TableCell>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '0.8rem',
-                        fontWeight: 600,
-                        color: '#0f172a',
-                      }}
-                    >
+                    <Typography variant="body2" sx={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: '0.82rem', fontWeight: 600, color: '#0f172a',
+                    }}>
                       {perm.resource}
                     </Typography>
                   </TableCell>
@@ -200,50 +140,27 @@ export default function PermissionTable({ permissions, loading, onEdit, onDelete
                   </TableCell>
 
                   <TableCell>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '0.75rem',
-                        color: '#475569',
-                        backgroundColor: '#f8fafc',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: 1,
-                        px: 1, py: 0.25,
-                        display: 'inline-block',
-                      }}
-                    >
-                      {perm.code ?? `${perm.resource}:${perm.action}`}
-                    </Typography>
-                  </TableCell>
-
-                  <TableCell>
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                    >
-                      {perm.description || <span style={{ fontStyle: 'italic', opacity: 0.4 }}>—</span>}
+                    <Typography variant="body2" sx={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: '0.75rem', color: '#475569',
+                      backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
+                      borderRadius: 1, px: 1, py: 0.25, display: 'inline-block',
+                    }}>
+                      {perm.code}
                     </Typography>
                   </TableCell>
 
                   <TableCell align="right">
                     <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
                       <Tooltip title="Chỉnh sửa" arrow>
-                        <IconButton
-                          size="small"
-                          onClick={() => onEdit(perm)}
-                          sx={{ color: '#3b5bdb', '&:hover': { backgroundColor: '#eef2ff' } }}
-                        >
+                        <IconButton size="small" onClick={() => onEdit(perm)}
+                          sx={{ color: '#3b5bdb', '&:hover': { backgroundColor: '#eef2ff' } }}>
                           <EditIcon sx={{ fontSize: 17 }} />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="Xóa permission" arrow>
-                        <IconButton
-                          size="small"
-                          onClick={() => onDelete(perm)}
-                          sx={{ color: '#dc2626', '&:hover': { backgroundColor: '#fee2e2' } }}
-                        >
+                        <IconButton size="small" onClick={() => onDelete(perm)}
+                          sx={{ color: '#dc2626', '&:hover': { backgroundColor: '#fee2e2' } }}>
                           <DeleteIcon sx={{ fontSize: 17 }} />
                         </IconButton>
                       </Tooltip>

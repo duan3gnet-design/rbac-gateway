@@ -1,14 +1,12 @@
 package com.auth.service.dto;
 
 /**
- * Response DTO cho Permission — trả về frontend.
- * code = resource:ACTION (dùng cho JWT claims và gateway RBAC check)
+ * Response DTO cho Permission.
+ * Không còn field role — role được quản lý qua Role entity / role_permissions.
  */
 public record PermissionResponse(
         Long id,
-        String role,
         String resource,
         String action,
-        String code,
-        String description
+        String code         // resource:ACTION — nhúng vào JWT
 ) {}

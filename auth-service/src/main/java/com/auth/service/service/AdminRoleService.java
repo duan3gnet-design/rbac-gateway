@@ -55,7 +55,6 @@ public class AdminRoleService {
         if (roleRepository.existsByName(req.name())) {
             throw new IllegalArgumentException("Role already exists: " + req.name());
         }
-
         Role role = new Role();
         role.setName(req.name());
         role.setPermissions(resolvePermissions(req.permissionIds()));
@@ -73,11 +72,9 @@ public class AdminRoleService {
         Role role = roleRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Role not found: " + id));
 
-        // Check duplicate name (excluding self)
         if (!role.getName().equals(req.name()) && roleRepository.existsByName(req.name())) {
             throw new IllegalArgumentException("Role name already taken: " + req.name());
         }
-
         role.setName(req.name());
         role.setPermissions(resolvePermissions(req.permissionIds()));
 
@@ -87,7 +84,7 @@ public class AdminRoleService {
         return toResponse(saved);
     }
 
-    // ─── Assign permissions (partial update) ──────────────────────────────────
+    // ─── Assign permissions ───────────────────────────────────────────────────
 
     @Transactional
     public RoleResponse assignPermissions(Long id, Set<Long> permissionIds) {
@@ -114,7 +111,6 @@ public class AdminRoleService {
                     "Cannot delete role '%s' — assigned to %d user(s). Unassign first."
                             .formatted(role.getName(), userCount));
         }
-
         roleRepository.delete(role);
         log.info("[Admin] Deleted role id={} name={}", id, role.getName());
         permissionService.evictAllPermissions();
@@ -142,16 +138,13 @@ public class AdminRoleService {
         List<PermissionResponse> perms = role.getPermissions().stream()
                 .map(p -> new PermissionResponse(
                         p.getId(),
-                        p.getRole(),
                         p.getResource().getName(),
                         p.getAction().getName(),
-                        p.getResource().getName() + ":" + p.getAction().getName(),
-                        null))
+                        p.getResource().getName() + ":" + p.getAction().getName()))
                 .sorted(Comparator.comparing(PermissionResponse::code))
                 .toList();
 
         int userCount = roleRepository.countUsersByRoleId(role.getId());
-
         return new RoleResponse(role.getId(), role.getName(), perms, userCount);
     }
 }

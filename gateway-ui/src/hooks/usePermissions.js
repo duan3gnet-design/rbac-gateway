@@ -4,13 +4,12 @@ import { resourceApi, actionApi } from '../api/resourceApi'
 
 export function usePermissions() {
   const [permissions, setPermissions] = useState([])
-  const [resources, setResources]     = useState([])   // [{id, name}] từ DB
-  const [actions, setActions]         = useState([])   // [{id, name}] từ DB
+  const [resources, setResources]     = useState([])
+  const [actions, setActions]         = useState([])
   const [loading, setLoading]         = useState(false)
   const [saving, setSaving]           = useState(false)
   const [error, setError]             = useState(null)
 
-  // ─── Load ──────────────────────────────────────────────────────────────────
   const loadPermissions = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -20,13 +19,9 @@ export function usePermissions() {
         resourceApi.getAll(),
         actionApi.getAll(),
       ])
-
       const sorted = [...permRes.data].sort((a, b) => {
-        const roleOrder = a.role.localeCompare(b.role)
-        if (roleOrder !== 0) return roleOrder
-        const resOrder = a.resource.localeCompare(b.resource)
-        if (resOrder !== 0) return resOrder
-        return a.action.localeCompare(b.action)
+        const r = a.resource.localeCompare(b.resource)
+        return r !== 0 ? r : a.action.localeCompare(b.action)
       })
       setPermissions(sorted)
       setResources(resRes.data.sort((a, b) => a.name.localeCompare(b.name)))
@@ -40,18 +35,14 @@ export function usePermissions() {
 
   useEffect(() => { loadPermissions() }, [loadPermissions])
 
-  // ─── Create ────────────────────────────────────────────────────────────────
   const createPermission = useCallback(async (formData) => {
     setSaving(true)
     try {
       const res = await permissionApi.create(formData)
       setPermissions(prev =>
         [...prev, res.data].sort((a, b) => {
-          const r = a.role.localeCompare(b.role)
-          if (r !== 0) return r
-          const r2 = a.resource.localeCompare(b.resource)
-          if (r2 !== 0) return r2
-          return a.action.localeCompare(b.action)
+          const r = a.resource.localeCompare(b.resource)
+          return r !== 0 ? r : a.action.localeCompare(b.action)
         })
       )
     } catch (e) {
@@ -61,7 +52,6 @@ export function usePermissions() {
     }
   }, [])
 
-  // ─── Update ────────────────────────────────────────────────────────────────
   const updatePermission = useCallback(async (id, formData) => {
     setSaving(true)
     try {
@@ -74,7 +64,6 @@ export function usePermissions() {
     }
   }, [])
 
-  // ─── Delete ────────────────────────────────────────────────────────────────
   const deletePermission = useCallback(async (id) => {
     setSaving(true)
     try {
@@ -87,9 +76,6 @@ export function usePermissions() {
     }
   }, [])
 
-  // ─── Derived ───────────────────────────────────────────────────────────────
-  const roleSet = [...new Set(permissions.map(p => p.role))].sort()
-
   return {
     permissions,
     resources,
@@ -101,6 +87,5 @@ export function usePermissions() {
     createPermission,
     updatePermission,
     deletePermission,
-    roleSet,
   }
 }
