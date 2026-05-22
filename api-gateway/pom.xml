@@ -23,45 +23,23 @@
     <dependencies>
 
         <!-- ─── MAIN ─────────────────────────────────────────────────────── -->
-        <!--
-            Gateway MVC (WebMVC + Virtual Thread thay thế WebFlux Reactive).
-        -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-gateway-server-webmvc</artifactId>
             <version>${gateway.mvc.version}</version>
         </dependency>
-        <!--
-            Circuit Breaker blocking (không phải Reactor-Resilience4j).
-        -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-circuitbreaker-resilience4j</artifactId>
         </dependency>
-        <!--
-            Eureka Client — đăng ký api-gateway vào Service Registry và
-            fetch danh sách instances để LoadBalancer có dữ liệu routing.
-        -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
-        <!--
-            Spring Cloud LoadBalancer — khai báo tường minh để rõ dependency.
-            Cung cấp LoadBalancerClient (blocking) với các algorithm:
-              RoundRobinLoadBalancer (default), RandomLoadBalancer.
-            Tích hợp Caffeine cache để không gọi Eureka mỗi request.
-            Đã được kéo theo bởi eureka-client, khai báo lại để pin version
-            và tránh bị exclude nhầm.
-        -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-loadbalancer</artifactId>
         </dependency>
-        <!--
-            Caffeine — backing cache cho LoadBalancer ServiceInstanceListSupplier.
-            Không có Caffeine, LoadBalancer fallback về ConcurrentHashMap không có TTL.
-        -->
         <dependency>
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
@@ -70,23 +48,14 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
-        <!--
-            Redis blocking (Lettuce) — dùng cho Rate Limit Lua script.
-        -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
-        <!--
-            commons-pool2 BẮT BUỘC để Lettuce connection pool hoạt động.
-        -->
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
         </dependency>
-        <!--
-            JDBC thay R2DBC — Virtual Thread không cần non-blocking driver.
-        -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jdbc</artifactId>
@@ -129,14 +98,18 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- ─── OBSERVABILITY + EUREKA (dùng chung từ common-observability) ──────── -->
+        <!-- ─── KAFKA ────────────────────────────────────────────────────── -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
+        <!-- ─── OBSERVABILITY ────────────────────────────────────────────── -->
         <dependency>
             <groupId>org.api.gateway</groupId>
             <artifactId>common-observability</artifactId>
             <version>${project.version}</version>
         </dependency>
-
-        <!-- ─── Eureka đã có trong common, giữ eureka-client riêng nếu cần override config gateway ─ -->
 
         <!-- ─── TEST ──────────────────────────────────────────────────────── -->
         <dependency>
@@ -169,6 +142,17 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>kafka</artifactId>
             <version>${testcontainers.version}</version>
             <scope>test</scope>
         </dependency>

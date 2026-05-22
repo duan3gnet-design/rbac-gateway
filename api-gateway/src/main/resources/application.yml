@@ -6,14 +6,12 @@ spring:
     name: api-gateway
     instance-id: ${spring.application.name}:${random.uuid}
   main:
-    web-application-type: servlet   # MVC thay WebFlux
+    web-application-type: servlet
 
-  # ==================== VIRTUAL THREAD ====================
   threads:
     virtual:
       enabled: true
 
-  # ==================== DATASOURCE (HikariCP) ====================
   datasource:
     url: ${GATEWAY_DB_URL:jdbc:postgresql://localhost:5432/rbac_gateway}
     username: ${DB_USERNAME:postgres}
@@ -24,7 +22,6 @@ spring:
       idle-timeout: 1800000
       connection-timeout: 3000
 
-  # ==================== REDIS ====================
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -38,29 +35,31 @@ spring:
           max-idle: 16
           max-active: 32
 
+  # ==================== KAFKA (Consumer) ====================
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    consumer:
+      group-id: api-gateway-rbac-sync
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.auth.service.event"
+
   cloud:
-    # ==================== GATEWAY MVC ====================
     gateway:
       mvc:
         trusted-proxies: ".*"
-
-    # ==================== LOAD BALANCER ====================
     loadbalancer:
-      # Dùng cache Caffeine để không gọi Eureka mỗi request
       cache:
         enabled: true
-        # TTL của cache instances — sync với registry-fetch-interval-seconds
         ttl: 10s
-        # Capacity ban đầu của cache (số service khác nhau)
         capacity: 256
-      # Chiến lược: ROUND_ROBIN (default) hoặc RANDOM
-      # RoundRobin phù hợp nhất cho Gateway routing đồng đều tải
       configurations: default
-      # Health-check: chỉ route đến instance đang UP
       health-check:
         initial-delay: 0
         interval: 10s
-        # Bật refetch khi tất cả instances của 1 service đều unreachable
         refetch-instances-interval: 25s
 
 # ==================== EUREKA CLIENT ====================
@@ -70,7 +69,6 @@ eureka:
       defaultZone: ${EUREKA_URL:http://localhost:8761/eureka/}
     fetch-registry: true
     register-with-eureka: true
-    # Giảm từ 30s → 10s để detect instance mới / dead nhanh hơn
     registry-fetch-interval-seconds: 10
   instance:
     prefer-ip-address: true
@@ -85,8 +83,6 @@ jwt:
 # ==================== GATEWAY ROUTE REFRESH ====================
 gateway:
   route-refresh:
-    # Redis Pub/Sub channel dùng để broadcast cache invalidation sang tất cả nodes.
-    # Override nếu cần tách channel theo môi trường (e.g. gateway:route-refresh:staging).
     channel: gateway:route-refresh
 
 # ==================== RATE LIMIT ====================
@@ -172,11 +168,9 @@ management:
       slo:
         http.server.requests: 50ms, 100ms, 200ms, 500ms, 1s
 
-  # ==================== TRACING (Micrometer OTel → Jaeger) ====================
   tracing:
     sampling:
-      probability: 1.0   # PHẢI là 1.0 — tail-based filtering xảy ra ở TailSamplingExporter
-                         # Nếu đặt < 1.0 ở đây, spans bị drop trước khi đến exporter
+      probability: 1.0
 
   opentelemetry:
     resource-attributes:
@@ -207,4 +201,4 @@ logging:
     com.netflix.discovery: WARN
     com.netflix.eureka: WARN
     io.opentelemetry: WARN
-    io.micrometer.tracing: WARN #DEBUG
+    io.micrometer.tracing: WARN

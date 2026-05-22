@@ -58,6 +58,56 @@ services:
     networks:
       - rbac-network
 
+  # ==================== Kafka (KRaft — không cần ZooKeeper) ====================
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: rbac-kafka
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:9092,EXTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092,CONTROLLER://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      CLUSTER_ID: "rbac-gateway-kafka-cluster"
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: [ "CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1" ]
+      interval: 15s
+      timeout: 10s
+      start_period: 30s
+      retries: 5
+    networks:
+      - rbac-network
+
+  # ==================== Kafka UI ====================
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: rbac-kafka-ui
+    restart: unless-stopped
+    environment:
+      KAFKA_CLUSTERS_0_NAME: rbac-kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    ports:
+      - "8092:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - rbac-network
+
   # ==================== SonarQube ====================
   sonarqube:
     image: sonarqube:25.1.0.102122-community
@@ -93,7 +143,6 @@ services:
     restart: unless-stopped
     environment:
       EUREKA_HOSTNAME: eureka-server
-      # Tắt self-preservation trong Docker dev (bật lại ở production)
       EUREKA_SELF_PRESERVATION: "false"
       EUREKA_EVICTION_INTERVAL: "15000"
     ports:
@@ -145,8 +194,8 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       INTERNAL_SECRET: ${INTERNAL_SECRET:-changeme-internal-secret}
-      # Eureka: trỏ vào container eureka-server trong cùng network
       EUREKA_URL: http://eureka-server:8761/eureka/
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
     ports:
       - "8081:8081"
@@ -154,6 +203,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       migration:
         condition: service_completed_successfully
@@ -187,7 +238,6 @@ services:
       RESOURCE_DB_URL: jdbc:postgresql://postgres:5432/rbac_resource
       AUTH_SERVICE_URL: http://auth-service:8081
       INTERNAL_SECRET: ${INTERNAL_SECRET:-changeme-internal-secret}
-      # Eureka: trỏ vào container eureka-server trong cùng network
       EUREKA_URL: http://eureka-server:8761/eureka/
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
     ports:
@@ -232,9 +282,8 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       JWT_SECRET: ${JWT_SECRET:-bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=}
       INTERNAL_SECRET: ${INTERNAL_SECRET:-changeme-internal-secret}
-      # Eureka: trỏ vào container eureka-server trong cùng network
       EUREKA_URL: http://eureka-server:8761/eureka/
-      # Jaeger OTLP — dùng HTTP port 4318, Spring Boot gửi qua HTTP/Protobuf
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
     ports:
       - "8080:8080"
@@ -242,6 +291,8 @@ services:
       auth-service:
         condition: service_healthy
       resource-service:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
       eureka-server:
         condition: service_healthy
@@ -263,17 +314,12 @@ services:
   who-am-i:
     container_name: who-am-i
     image: traefik/whoami
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
-      - "traefik.http.routers.whoami.entrypoints=web"
     ports:
       - "81:80"
     networks:
       - rbac-network
 
   # ==================== InfluxDB (k6 metrics sink) ====================
-  # k6 stream real-time metrics vào InfluxDB → Grafana k6 dashboard
   influxdb:
     image: influxdb:1.8-alpine
     container_name: rbac-influxdb
@@ -295,9 +341,6 @@ services:
       - rbac-network
 
   # ==================== k6 (performance test runner) ====================
-  # PowerShell : $env:K6_TEST_PROFILE="STRESS"; $env:K6_SCRIPT="scenarios/rate-limit.js"; docker compose --profile perf run --rm k6
-  # Git Bash   : MSYS_NO_PATHCONV=1 K6_TEST_PROFILE=STRESS docker compose --profile perf run --rm k6
-  # CMD        : set K6_TEST_PROFILE=STRESS && docker compose --profile perf run --rm k6
   k6:
     image: grafana/k6:latest
     container_name: rbac-k6
@@ -314,9 +357,6 @@ services:
     volumes:
       - ./performance-test/k6:/scripts
       - ./performance-test/k6/results:/scripts/results
-    # k6-entrypoint.sh được mount cùng với scripts —
-    # expand $K6_SCRIPT trong container shell, tránh hoàn toàn
-    # vấn đề Docker Compose interpolate path ở host.
     entrypoint: ["/bin/sh", "/scripts/k6-entrypoint.sh"]
     depends_on:
       influxdb:
@@ -331,12 +371,11 @@ services:
     container_name: rbac-jaeger
     restart: unless-stopped
     environment:
-      # Jaeger v2 all-in-one nạp config từ đây
       COLLECTOR_OTLP_ENABLED: "true"
     ports:
-      - "16686:16686"   # Jaeger UI
-      - "4317:4317"     # OTLP gRPC receiver (nhận spans từ api-gateway)
-      - "4318:4318"     # OTLP HTTP receiver
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
       - "14269:14269"
     networks:
       - rbac-network
@@ -352,7 +391,7 @@ services:
       - --storage.tsdb.retention.time=7d
       - --web.console.libraries=/usr/share/prometheus/console_libraries
       - --web.console.templates=/usr/share/prometheus/consoles
-      - --web.enable-lifecycle   # POST /-/reload để reload config
+      - --web.enable-lifecycle
       - --enable-feature=exemplar-storage
     ports:
       - "9090:9090"
@@ -374,7 +413,6 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_AUTH_ANONYMOUS_ENABLED: "false"
-      # Tích hợp Jaeger trace link từ Grafana Explore
       GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
     ports:
       - "3001:3000"
@@ -391,6 +429,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  kafka_data:
   sonarqube_data:
   sonarqube_extensions:
   sonarqube_logs:

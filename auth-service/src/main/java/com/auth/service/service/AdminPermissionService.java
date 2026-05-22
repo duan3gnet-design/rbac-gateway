@@ -5,6 +5,9 @@ import com.auth.service.dto.PermissionResponse;
 import com.auth.service.entity.Action;
 import com.auth.service.entity.Permission;
 import com.auth.service.entity.Resource;
+import com.auth.service.event.PermissionEvent;
+import com.auth.service.event.RbacEventPublisher;
+import com.auth.service.event.RbacEventType;
 import com.auth.service.repository.ActionRepository;
 import com.auth.service.repository.PermissionRepository;
 import com.auth.service.repository.ResourceRepository;
@@ -25,6 +28,7 @@ public class AdminPermissionService {
     private final ResourceRepository   resourceRepository;
     private final ActionRepository     actionRepository;
     private final PermissionService    permissionService;
+    private final RbacEventPublisher   eventPublisher;
 
     // ─── Read ─────────────────────────────────────────────────────────────────
 
@@ -64,6 +68,12 @@ public class AdminPermissionService {
                 resource.getName(), action.getName());
 
         permissionService.evictAllPermissions();
+        eventPublisher.publishPermission(new PermissionEvent(
+                RbacEventType.CREATED, saved.getId(),
+                resource.getName(), action.getName(),
+                resource.getName() + ":" + action.getName(),
+                resource.getName(), action.getName()));
+
         return toResponse(saved);
     }
 
@@ -76,6 +86,8 @@ public class AdminPermissionService {
 
         Resource resource = resolveResource(req.resource());
         Action   action   = resolveAction(req.action());
+        String oldResourceName = p.getResource().getName();
+        String oldActionName = p.getAction().getName();
 
         permissionRepository.findByResourceIdAndActionId(resource.getId(), action.getId())
                 .ifPresent(existing -> {
@@ -93,6 +105,12 @@ public class AdminPermissionService {
                 resource.getName(), action.getName());
 
         permissionService.evictAllPermissions();
+        eventPublisher.publishPermission(new PermissionEvent(
+                RbacEventType.UPDATED, saved.getId(),
+                resource.getName(), action.getName(),
+                resource.getName() + ":" + action.getName(),
+                oldResourceName, oldActionName));
+
         return toResponse(saved);
     }
 
@@ -100,12 +118,19 @@ public class AdminPermissionService {
 
     @Transactional
     public void delete(Long id) {
-        if (!permissionRepository.existsById(id)) {
-            throw new EntityNotFoundException("Permission not found: " + id);
-        }
+        Permission p = permissionRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Permission not found: " + id));
+
+        String resource = p.getResource().getName();
+        String action   = p.getAction().getName();
+
         permissionRepository.deleteById(id);
         log.info("[Admin] Deleted permission id={}", id);
+
         permissionService.evictAllPermissions();
+        eventPublisher.publishPermission(new PermissionEvent(
+                RbacEventType.DELETED, id, resource, action,
+                resource + ":" + action, resource, action));
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────
