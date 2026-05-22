@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
@@ -96,6 +97,17 @@ public class RbacPermissionChecker {
                         && matcher.match(rule.pathPattern(), path))
                 .map(RoutePermissionRule::permissionCode)
                 .anyMatch(jwtPermissions::contains);
+    }
+
+    public boolean isPublicPath(String method, String path) {
+        List<RoutePermissionRule> rules = getRules();
+
+        return rules.stream()
+                .filter(rule -> matchesMethod(rule.httpMethod(), method))
+                .filter(rule -> rule.pathPattern() != null
+                        && matcher.match(rule.pathPattern(), path))
+                .map(RoutePermissionRule::permissionCode)
+                .anyMatch(Objects::isNull);
     }
 
     /**

@@ -136,10 +136,10 @@ public class PostgreSQLContainerConfig {
                     ) AS http_method,
                     lower(r.name) || ':' || upper(a.name) AS permission_code
                 FROM gateway_routes gr
-                JOIN route_permissions rp ON rp.route_id  = gr.id
-                JOIN permissions       p  ON p.id         = rp.permission_id
-                JOIN resources         r  ON r.id         = p.resource_id
-                JOIN actions           a  ON a.id         = p.action_id
+                LEFT JOIN route_permissions rp ON rp.route_id  = gr.id
+                LEFT JOIN permissions       p  ON p.id         = rp.permission_id
+                LEFT JOIN resources         r  ON r.id         = p.resource_id
+                LEFT JOIN actions           a  ON a.id         = p.action_id
                 WHERE gr.enabled = TRUE;
 
                 -- ── Seed: resources + actions ────────────────────────────────────────

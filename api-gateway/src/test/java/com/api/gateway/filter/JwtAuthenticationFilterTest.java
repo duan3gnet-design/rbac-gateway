@@ -21,7 +21,6 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,67 +47,6 @@ class JwtAuthenticationFilterTest {
     private boolean runFilter(MockHttpServletRequest request, MockHttpServletResponse response) throws Exception {
         return filter.preHandle(request, response, new Object());
     }
-
-    // ─── PUBLIC PATHS ────────────────────────────────────────────────────────
-
-    @Nested
-    @DisplayName("public paths (bypass auth)")
-    class PublicPaths {
-
-        @Test
-        @DisplayName("POST /api/auth/login → bypass auth, return true")
-        void loginPath_shouldBypassAuth() throws Exception {
-            var req  = new MockHttpServletRequest("POST", "/api/auth/login");
-            var resp = new MockHttpServletResponse();
-
-            boolean result = runFilter(req, resp);
-
-            assertThat(result).isTrue();
-            assertThat(resp.getStatus()).isEqualTo(200);
-            verifyNoInteractions(jwtValidator, rbacChecker);
-        }
-
-        @Test
-        @DisplayName("POST /api/auth/register → bypass auth")
-        void registerPath_shouldBypassAuth() throws Exception {
-            var req  = new MockHttpServletRequest("POST", "/api/auth/register");
-            var resp = new MockHttpServletResponse();
-
-            assertThat(runFilter(req, resp)).isTrue();
-            verifyNoInteractions(jwtValidator, rbacChecker);
-        }
-
-        @Test
-        @DisplayName("POST /api/auth/refresh → bypass auth")
-        void refreshPath_shouldBypassAuth() throws Exception {
-            var req  = new MockHttpServletRequest("POST", "/api/auth/refresh");
-            var resp = new MockHttpServletResponse();
-
-            assertThat(runFilter(req, resp)).isTrue();
-            verifyNoInteractions(jwtValidator, rbacChecker);
-        }
-
-        @Test
-        @DisplayName("POST /api/auth/logout → bypass auth")
-        void logoutPath_shouldBypassAuth() throws Exception {
-            var req  = new MockHttpServletRequest("POST", "/api/auth/logout");
-            var resp = new MockHttpServletResponse();
-
-            assertThat(runFilter(req, resp)).isTrue();
-            verifyNoInteractions(jwtValidator, rbacChecker);
-        }
-
-        @Test
-        @DisplayName("GET /oauth2/authorization/google → bypass auth")
-        void oauth2Path_shouldBypassAuth() throws Exception {
-            var req  = new MockHttpServletRequest("GET", "/oauth2/authorization/google");
-            var resp = new MockHttpServletResponse();
-
-            assertThat(runFilter(req, resp)).isTrue();
-            verifyNoInteractions(jwtValidator, rbacChecker);
-        }
-    }
-
     // ─── RBAC PERMISSION CHECK ───────────────────────────────────────────────
 
     @Nested

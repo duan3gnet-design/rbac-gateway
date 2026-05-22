@@ -44,15 +44,7 @@ public class JwtAuthenticationFilter implements HandlerInterceptor {
     private static final List<String> PUBLIC_PATHS = List.of(
             "/error",
             "/fallback/**",
-            "/actuator/**",
-            "/api/auth/login",
-            "/api/auth/register",
-            "/api/auth/refresh",
-            "/api/auth/logout",
-            "/api/auth/validate",
-            "/api/auth/google",
-            "/oauth2/**",
-            "/login/oauth2/**"
+            "/actuator/**"
     );
 
     @Override
@@ -65,7 +57,7 @@ public class JwtAuthenticationFilter implements HandlerInterceptor {
         log.debug("[JWT] {} {}", method, path);
 
         // ── 1. Public paths ──────────────────────────────────────────────────
-        if (isPublicPath(path)) return true;
+        if (isPublicPath(path) || rbacChecker.isPublicPath(method, path)) return true;
 
         // ── 2. Bearer token ──────────────────────────────────────────────────
         String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
