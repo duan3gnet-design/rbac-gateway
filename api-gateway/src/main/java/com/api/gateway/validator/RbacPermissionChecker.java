@@ -3,6 +3,7 @@ package com.api.gateway.validator;
 import com.api.gateway.entity.RoutePermissionRule;
 import com.api.gateway.repository.RoutePermissionRuleRepository;
 import com.api.gateway.route.RouteRefreshEvent;
+import io.micrometer.observation.annotation.Observed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -88,6 +89,7 @@ public class RbacPermissionChecker {
      * @param path           request path ("/api/resources/products/123")
      * @return {@code true} nếu có ít nhất 1 rule match và permission thoả mãn
      */
+    @Observed(name = "gateway.check.permission.process", contextualName = "check-permission")
     public boolean hasPermission(Set<String> jwtPermissions, String method, String path) {
         List<RoutePermissionRule> rules = getRules();
 

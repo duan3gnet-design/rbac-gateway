@@ -4,6 +4,7 @@ import com.common.observability.tracing.FilteringSpanExporter;
 import com.common.observability.tracing.GroupedTraceSpanProcessor;
 import com.common.observability.tracing.TracingProperties;
 import io.micrometer.observation.ObservationRegistry;
+import io.micrometer.observation.aop.ObservedAspect;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
@@ -165,5 +166,11 @@ public class ObservabilityAutoConfiguration {
                                 .executor(Executors.newVirtualThreadPerTaskExecutor())
                                 .build()))
                 .observationRegistry(observationRegistry);
+    }
+
+    @Bean
+    @ConditionalOnProperty("tracing.export.otlp.endpoint")
+    public ObservedAspect observedAspect(ObservationRegistry observationRegistry) {
+        return new ObservedAspect(observationRegistry);
     }
 }

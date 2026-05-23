@@ -46,6 +46,8 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "com.auth.service.event"
+    listener:
+      observation-enabled: true
 
   cloud:
     gateway:
@@ -181,8 +183,12 @@ management:
       export:
         enabled: false
 
+  observations:
+    annotations:
+      enabled: true
+
 tracing:
-  success-rate: 0.1
+  success-rate: 1.0
   excluded-paths:
     - /actuator
     - /favicon.ico

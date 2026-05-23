@@ -36,6 +36,10 @@ public class KafkaProducerConfig {
     @Bean
     public KafkaTemplate<String, Object> rbacKafkaTemplate(
             ProducerFactory<String, Object> rbacProducerFactory) {
-        return new KafkaTemplate<>(rbacProducerFactory);
+        KafkaTemplate<String, Object> template = new KafkaTemplate<>(rbacProducerFactory);
+
+        template.setObservationEnabled(true); // Crucial for Spring Boot 3+
+
+        return template;
     }
 }

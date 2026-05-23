@@ -66,6 +66,7 @@ public class KafkaConsumerConfig {
         ConcurrentKafkaListenerContainerFactory<String, Object> factory =
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(rbacConsumerFactory);
+        factory.getContainerProperties().setObservationEnabled(true);
 
         // Manual ACK — đảm bảo at-least-once processing
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
