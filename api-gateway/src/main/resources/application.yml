@@ -78,9 +78,17 @@ eureka:
     lease-expiration-duration-in-seconds: 30
     health-check-url-path: /actuator/health
 
-# ==================== JWT ====================
-jwt:
-  secret: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=
+# ==================== OIDC / JWKS ====================
+# The gateway validates RS256 JWTs using the public key fetched from auth-service.
+# No shared secret needed – only the JWKS endpoint (public key) is required.
+#
+# In production, use the internal k8s service DNS name, e.g.:
+#   jwks-uri:   http://rbac-auth.your-namespace.svc.cluster.local:8081/oauth2/jwks
+#   issuer-uri: https://auth.your-domain.com   (must match oidc.issuer-uri in auth-service)
+oidc:
+  jwks-uri:            ${OIDC_JWKS_URI:http://localhost:8081/oauth2/jwks}
+  issuer-uri:          ${OIDC_ISSUER_URI:http://localhost:8081}
+  jwks-cache-ttl-seconds: ${OIDC_JWKS_CACHE_TTL:300}
 
 # ==================== GATEWAY ROUTE REFRESH ====================
 gateway:

@@ -1,17 +1,14 @@
 package com.api.gateway.integration;
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
+import com.api.gateway.config.TestContainerConfig;
 import org.junit.jupiter.api.*;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 
-import javax.crypto.SecretKey;
-import java.util.Date;
 import java.util.List;
 
+import static com.api.gateway.config.TestContainerConfig.TEST_ISSUER;
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -19,32 +16,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("Gateway Integration Tests")
 class GatewayIntegrationTest extends AbstractIntegrationTest {
 
-    private static final String SECRET = "bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=";
-
-    private SecretKey secretKey() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(SECRET));
-    }
-
     private String jwt(String username, List<String> roles, List<String> permissions) {
-        return Jwts.builder()
-                .subject(username)
-                .claim("roles", roles)
-                .claim("permissions", permissions)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + 300_000))
-                .signWith(secretKey())
-                .compact();
+        return TestContainerConfig.RSA.mintToken(username, roles, permissions, TEST_ISSUER);
     }
 
     private String expiredJwt(String username) {
-        return Jwts.builder()
-                .subject(username)
-                .claim("roles", List.of("ROLE_USER"))
-                .claim("permissions", List.of("products:READ"))
-                .issuedAt(new Date(System.currentTimeMillis() - 10_000))
-                .expiration(new Date(System.currentTimeMillis() - 5_000))
-                .signWith(secretKey())
-                .compact();
+        return TestContainerConfig.RSA.mintExpiredToken(username, TEST_ISSUER);
     }
 
     // ═══════════════════════════════════════════════════════════════════════

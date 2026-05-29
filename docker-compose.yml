@@ -197,6 +197,7 @@ services:
       EUREKA_URL: http://eureka-server:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OIDC_ISSUER_URI: http://localhost:8081
     ports:
       - "8081:8081"
     depends_on:
@@ -285,6 +286,8 @@ services:
       EUREKA_URL: http://eureka-server:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
+      OIDC_JWKS_URI: http://rbac-auth:8081/oauth2/jwks
+      OIDC_ISSUER_URI: http://rbac-auth:8081
     ports:
       - "8080:8080"
     depends_on:
@@ -425,6 +428,22 @@ services:
       - jaeger
     networks:
       - rbac-network
+      
+  # ==================== rbac-auth nginx https proxy ====================
+  rbac-auth-proxy:
+    image: nginx:1.30.2-alpine
+    container_name: rbac-auth-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - auth-service
+    networks:
+      - rbac-network
+      - kind
 
 volumes:
   postgres_data:
@@ -440,3 +459,5 @@ volumes:
 networks:
   rbac-network:
     driver: bridge
+  kind:
+    external: true

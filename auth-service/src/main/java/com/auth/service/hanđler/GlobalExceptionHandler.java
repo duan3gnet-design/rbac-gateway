@@ -48,4 +48,10 @@ public class GlobalExceptionHandler {
                 .orElse("Validation failed");
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
     }
+
+    /** OIDC – invalid/expired Bearer token on /oauth2/userinfo */
+    @ExceptionHandler(SecurityException.class)
+    public ProblemDetail handleSecurity(SecurityException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
+    }
 }

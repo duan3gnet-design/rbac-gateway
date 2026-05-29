@@ -1,6 +1,6 @@
 package com.api.gateway.integration;
 
-import com.api.gateway.config.PostgreSQLContainerConfig;
+import com.api.gateway.config.TestContainerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.AfterAll;
@@ -20,7 +20,7 @@ import java.util.Set;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import({PostgreSQLContainerConfig.class})
+@Import({TestContainerConfig.class})
 abstract class AbstractIntegrationTest {
 
     private static final List<String> CB_NAMES = List.of("fastOpenCB", "slowOpenCB");
@@ -53,7 +53,7 @@ abstract class AbstractIntegrationTest {
     );
 
     protected static final com.github.tomakehurst.wiremock.WireMockServer wireMock =
-            PostgreSQLContainerConfig.WIRE_MOCK;
+            TestContainerConfig.WIRE_MOCK;
 
     @LocalServerPort
     protected int gatewayPort;
@@ -75,6 +75,7 @@ abstract class AbstractIntegrationTest {
     @BeforeEach
     void baseSetUp() {
         wireMock.resetAll();
+        TestContainerConfig.RSA.stubJwks(wireMock);
 
         // Reset CB về CLOSED trước mỗi test
         CB_NAMES.forEach(name ->
@@ -110,7 +111,7 @@ abstract class AbstractIntegrationTest {
                 "DELETE FROM gateway_routes WHERE id NOT IN (" + seededIds + ")");
 
         // Reset URI của seeded routes về WireMock (test có thể đã đổi URI)
-        String wireMockUri = "http://localhost:" + PostgreSQLContainerConfig.WIRE_MOCK.port();
+        String wireMockUri = "http://localhost:" + TestContainerConfig.WIRE_MOCK.port();
         jdbcTemplate.update(
                 "UPDATE gateway_routes SET uri = ?, enabled = TRUE, updated_at = now()" +
                 " WHERE id IN (" + seededIds + ")",

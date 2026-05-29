@@ -45,6 +45,18 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // ── OIDC / OAuth2 discovery & token endpoints (public) ──
+                        .requestMatchers(
+                                "/.well-known/openid-configuration",
+                                "/.well-known/oauth-authorization-server",
+                                "/oauth2/jwks",
+                                "/oauth2/token",
+                                "/oauth2/authorize"
+                        ).permitAll()
+                        // ── OIDC userinfo (requires valid Bearer token) ─────────
+                        // Auth handled by OidcUserInfoController itself (no session)
+                        .requestMatchers("/oauth2/userinfo").permitAll()
+
                         // ── Public auth endpoints ──────────────────────────────
                         .requestMatchers(
                                 "/api/auth/login",
@@ -61,7 +73,6 @@ public class SecurityConfig {
                         // ── Internal service-to-service ───────────────────────
                         .requestMatchers("/internal/**").authenticated()
                         // ── Admin API (RBAC check via @PreAuthorize) ──────────
-                        // Cần authenticated() ở đây; role check xử lý bởi @PreAuthorize
                         .requestMatchers("/api/auth/admin/**").authenticated()
                         // ── Everything else ───────────────────────────────────
                         .anyRequest().authenticated())

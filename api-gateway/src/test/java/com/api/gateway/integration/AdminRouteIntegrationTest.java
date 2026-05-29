@@ -1,21 +1,20 @@
 package com.api.gateway.integration;
 
+import com.api.gateway.config.TestContainerConfig;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.*;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 
-import javax.crypto.SecretKey;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.api.gateway.config.TestContainerConfig.TEST_ISSUER;
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -25,8 +24,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DisplayName("Admin Route Management Integration Tests")
 class AdminRouteIntegrationTest extends AbstractIntegrationTest {
-
-    private static final String SECRET = "bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=";
 
     private static final String SAMPLE_ROUTE_BODY = """
             {
@@ -39,10 +36,6 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
             }
             """;
 
-    private SecretKey secretKey() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(SECRET));
-    }
-
     private String adminJwt() {
         return jwt("admin@test.com", List.of("ROLE_ADMIN"),
                 List.of("users:READ", "admin:READ", "admin:CREATE", "admin:UPDATE", "admin:DELETE"));
@@ -53,14 +46,7 @@ class AdminRouteIntegrationTest extends AbstractIntegrationTest {
     }
 
     private String jwt(String username, List<String> roles, List<String> permissions) {
-        return Jwts.builder()
-                .subject(username)
-                .claim("roles", roles)
-                .claim("permissions", permissions)
-                .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + 300_000))
-                .signWith(secretKey())
-                .compact();
+        return TestContainerConfig.RSA.mintToken(username, roles, permissions, TEST_ISSUER);
     }
 
     /** Helper: tạo route mới qua API, path = /api/{routeId}/** */

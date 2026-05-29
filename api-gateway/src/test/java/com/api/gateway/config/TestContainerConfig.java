@@ -1,7 +1,9 @@
 package com.api.gateway.config;
 
+import com.api.gateway.support.RsaKeyTestUtil;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
@@ -15,10 +17,17 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+@Slf4j
 @TestConfiguration(proxyBeanMethods = false)
-public class PostgreSQLContainerConfig {
+public class TestContainerConfig {
 
     public static final WireMockServer WIRE_MOCK;
+
+    /** Test issuer – must match TEST_ISSUER_URI system property below. */
+    public static final String TEST_ISSUER = "http://test-issuer";
+
+    /** Shared RSA key pair: stubs /oauth2/jwks on WireMock + mints test tokens. */
+    public static final RsaKeyTestUtil RSA = RsaKeyTestUtil.generate();
 
     @SuppressWarnings("rawtypes")
     public static final GenericContainer REDIS_CONTAINER;
@@ -29,6 +38,17 @@ public class PostgreSQLContainerConfig {
                 .dynamicPort()
                 .http2PlainDisabled(true));
         WIRE_MOCK.start();
+
+        // Stub JWKS on WireMock so JwtValidator (NimbusJwtDecoder) can fetch it at startup
+        RSA.stubJwks(WIRE_MOCK);
+
+        // Point test application context at WireMock JWKS & issuer
+        String jwksUri = "http://localhost:" + WIRE_MOCK.port() + "/oauth2/jwks";
+        System.setProperty("TEST_JWKS_URI",   jwksUri);
+        System.setProperty("TEST_ISSUER_URI",  TEST_ISSUER);
+        // Expose as oidc.* so Spring's @ConfigurationProperties picks them up via ENV override
+        System.setProperty("OIDC_JWKS_URI",   jwksUri);
+        System.setProperty("OIDC_ISSUER_URI",  TEST_ISSUER);
 
         REDIS_CONTAINER = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
                 .withExposedPorts(6379);
@@ -44,6 +64,7 @@ public class PostgreSQLContainerConfig {
         String wireMockUri = "http://localhost:" + WIRE_MOCK.port();
         String initSql     = buildInitSql(wireMockUri);
 
+        log.info("wireMockUri: {}", wireMockUri);
         Path tmpSql = Files.createTempFile("gateway-test-init-", ".sql");
         Files.writeString(tmpSql, initSql, StandardCharsets.UTF_8);
 
@@ -109,13 +130,6 @@ public class PostgreSQLContainerConfig {
                 );
 
                 -- ── View: route_permission_rules ──────────────────────────────────────
-                --
-                -- Cú pháp jsonb đúng trong PostgreSQL:
-                --   elem->'args'->>'pattern'  (-> trả jsonb, ->> trả text)
-                -- KHÔNG dùng:
-                --   elem->>'args'->>'pattern'  (->> trả text, text không có -> operator)
-                --
-                -- http_method NULL = route không có Method predicate = match mọi method.
 
                 CREATE OR REPLACE VIEW route_permission_rules AS
                 SELECT
@@ -215,18 +229,6 @@ public class PostgreSQLContainerConfig {
                  '[{"name":"CircuitBreaker","args":{"name":"fastOpenCB","fallbackUri":"forward:/fallback/auth","statusCodes":"500,502,503,504"}}]',
                  90),
                 
-                -- ─── Resource Service routes — tách chi tiết theo path/method ────────────────
-                --
-                -- Lý do tách thay vì dùng 1 route catch-all "/api/resources/**":
-                --   View route_permission_rules join route_permissions để build rules
-                --   (path_pattern, http_method, permission_code). Nếu dùng 1 route với nhiều
-                --   permissions, checker không phân biệt được path/method nào cần permission gì
-                --   → tất cả permissions đều valid cho tất cả paths trong route.
-                --
-                --   Tách thành routes chi tiết → mỗi route có đúng 1 permission tương ứng
-                --   → view sinh ra rules chính xác như cũ.
-                
-                -- Products (ROLE_USER: products:READ)
                 ('resource-products', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/products"}},{"name":"Method","args":{"methods":"GET"}}]',
                  '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
@@ -237,7 +239,6 @@ public class PostgreSQLContainerConfig {
                  '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  210),
                 
-                -- Orders (ROLE_USER: orders:READ, orders:CREATE, orders:UPDATE, orders:DELETE)
                 ('resource-orders-get', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/orders"}},{"name":"Method","args":{"methods":"GET"}}]',
                  '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
@@ -268,7 +269,6 @@ public class PostgreSQLContainerConfig {
                  '[{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  270),
                 
-                -- Admin Users (ROLE_ADMIN: users:READ, users:CREATE, users:UPDATE, users:DELETE)
                 ('resource-admin-users-get', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/admin/users"}},{"name":"Method","args":{"methods":"GET"}}]',
                  '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
@@ -294,7 +294,6 @@ public class PostgreSQLContainerConfig {
                  '[{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
                  340),
                 
-                -- Profile (ROLE_USER: profile:READ, profile:UPDATE)
                 ('resource-profile-get', '%1$s',
                  '[{"name":"Path","args":{"pattern":"/api/resources/profile/**"}},{"name":"Method","args":{"methods":"GET"}}]',
                  '[{"name":"Retry","args":{"retries":"3","statuses":"SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT","methods":"GET","backoff.firstBackoff":"100ms","backoff.maxBackoff":"1000ms","backoff.factor":"2"}},{"name":"CircuitBreaker","args":{"name":"slowOpenCB","fallbackUri":"forward:/fallback/resource","statusCodes":"500,502,503,504"}}]',
@@ -309,129 +308,42 @@ public class PostgreSQLContainerConfig {
 
                 -- ── Seed: route_permissions ──────────────────────────────────────────
 
-                -- Products
                 INSERT INTO route_permissions (route_id, permission_id)
-                SELECT r.id, p.id FROM (VALUES
-                    ('resource-products'),
-                    ('resource-products-detail')
-                ) AS r(id)
-                CROSS JOIN (
-                    SELECT p.id FROM permissions p
-                    JOIN resources res ON res.id = p.resource_id
-                    JOIN actions   a   ON a.id   = p.action_id
-                    WHERE res.name = 'products' AND a.name = 'READ'                ) AS p
+                SELECT r.id, p.id FROM (VALUES ('resource-products'),('resource-products-detail')) AS r(id)
+                CROSS JOIN (SELECT p.id FROM permissions p JOIN resources res ON res.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE res.name='products' AND a.name='READ') AS p
                 ON CONFLICT DO NOTHING;
-                
-                -- Orders — GET
-                INSERT INTO route_permissions (route_id, permission_id)
-                SELECT r.id, p.id FROM (VALUES
-                    ('resource-orders-get'),
-                    ('resource-orders-get-detail')
-                ) AS r(id)
-                CROSS JOIN (
-                    SELECT p.id FROM permissions p
-                    JOIN resources res ON res.id = p.resource_id
-                    JOIN actions   a   ON a.id   = p.action_id
-                    WHERE res.name = 'orders' AND a.name = 'READ'                ) AS p
-                ON CONFLICT DO NOTHING;
-                
-                -- Orders — POST (CREATE)
-                INSERT INTO route_permissions (route_id, permission_id)
-                SELECT r.id, p.id FROM (VALUES
-                    ('resource-orders-create'),
-                    ('resource-orders-create-detail')
-                ) AS r(id)
-                CROSS JOIN (
-                    SELECT p.id FROM permissions p
-                    JOIN resources res ON res.id = p.resource_id
-                    JOIN actions   a   ON a.id   = p.action_id
-                    WHERE res.name = 'orders' AND a.name = 'CREATE'                ) AS p
-                ON CONFLICT DO NOTHING;
-                
-                -- Orders — PUT (UPDATE)
-                INSERT INTO route_permissions (route_id, permission_id)
-                SELECT 'resource-orders-update', p.id
-                FROM permissions p
-                JOIN resources res ON res.id = p.resource_id
-                JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'orders' AND a.name = 'UPDATE'                ON CONFLICT DO NOTHING;
-                
-                -- Orders — DELETE
-                INSERT INTO route_permissions (route_id, permission_id)
-                SELECT 'resource-orders-delete', p.id
-                FROM permissions p
-                JOIN resources res ON res.id = p.resource_id
-                JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'orders' AND a.name = 'DELETE'                ON CONFLICT DO NOTHING;
-                
-                -- Admin Users — GET
-                INSERT INTO route_permissions (route_id, permission_id)
-                SELECT r.id, p.id FROM (VALUES
-                    ('resource-admin-users-get'),
-                    ('resource-admin-users-get-detail')
-                ) AS r(id)
-                CROSS JOIN (
-                    SELECT p.id FROM permissions p
-                    JOIN resources res ON res.id = p.resource_id
-                    JOIN actions   a   ON a.id   = p.action_id
-                    WHERE res.name = 'users' AND a.name = 'READ'                ) AS p
-                ON CONFLICT DO NOTHING;
-                
-                -- Admin Users — POST (CREATE)
-                INSERT INTO route_permissions (route_id, permission_id)
-                SELECT 'resource-admin-users-create', p.id
-                FROM permissions p
-                JOIN resources res ON res.id = p.resource_id
-                JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'users' AND a.name = 'CREATE'                ON CONFLICT DO NOTHING;
-                
-                -- Admin Users — PUT (UPDATE)
-                INSERT INTO route_permissions (route_id, permission_id)
-                SELECT 'resource-admin-users-update', p.id
-                FROM permissions p
-                JOIN resources res ON res.id = p.resource_id
-                JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'users' AND a.name = 'UPDATE'                ON CONFLICT DO NOTHING;
-                
-                -- Admin Users — DELETE
-                INSERT INTO route_permissions (route_id, permission_id)
-                SELECT 'resource-admin-users-delete', p.id
-                FROM permissions p
-                JOIN resources res ON res.id = p.resource_id
-                JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'users' AND a.name = 'DELETE'                ON CONFLICT DO NOTHING;
-                
-                -- Profile — GET (READ)
-                INSERT INTO route_permissions (route_id, permission_id)
-                SELECT 'resource-profile-get', p.id
-                FROM permissions p
-                JOIN resources res ON res.id = p.resource_id
-                JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'profile' AND a.name = 'READ'                ON CONFLICT DO NOTHING;
-                
-                -- Profile — PUT (UPDATE)
-                INSERT INTO route_permissions (route_id, permission_id)
-                SELECT 'resource-profile-update', p.id
-                FROM permissions p
-                JOIN resources res ON res.id = p.resource_id
-                JOIN actions   a   ON a.id   = p.action_id
-                WHERE res.name = 'profile' AND a.name = 'UPDATE'                ON CONFLICT DO NOTHING;
 
-                -- auth-logout-all → ROLE_USER auth:LOGOUT_ALL
-                
                 INSERT INTO route_permissions (route_id, permission_id)
-                SELECT 'auth-logout-all', p.id
-                FROM permissions p
-                JOIN resources r ON r.id = p.resource_id
-                JOIN actions   a ON a.id = p.action_id
-                WHERE r.name = 'auth' AND a.name = 'LOGOUT_ALL'                ON CONFLICT DO NOTHING;
+                SELECT r.id, p.id FROM (VALUES ('resource-orders-get'),('resource-orders-get-detail')) AS r(id)
+                CROSS JOIN (SELECT p.id FROM permissions p JOIN resources res ON res.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE res.name='orders' AND a.name='READ') AS p
+                ON CONFLICT DO NOTHING;
+
+                INSERT INTO route_permissions (route_id, permission_id)
+                SELECT r.id, p.id FROM (VALUES ('resource-orders-create'),('resource-orders-create-detail')) AS r(id)
+                CROSS JOIN (SELECT p.id FROM permissions p JOIN resources res ON res.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE res.name='orders' AND a.name='CREATE') AS p
+                ON CONFLICT DO NOTHING;
+
+                INSERT INTO route_permissions (route_id, permission_id) SELECT 'resource-orders-update', p.id FROM permissions p JOIN resources res ON res.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE res.name='orders' AND a.name='UPDATE' ON CONFLICT DO NOTHING;
+                INSERT INTO route_permissions (route_id, permission_id) SELECT 'resource-orders-delete', p.id FROM permissions p JOIN resources res ON res.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE res.name='orders' AND a.name='DELETE' ON CONFLICT DO NOTHING;
+
+                INSERT INTO route_permissions (route_id, permission_id)
+                SELECT r.id, p.id FROM (VALUES ('resource-admin-users-get'),('resource-admin-users-get-detail')) AS r(id)
+                CROSS JOIN (SELECT p.id FROM permissions p JOIN resources res ON res.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE res.name='users' AND a.name='READ') AS p
+                ON CONFLICT DO NOTHING;
+
+                INSERT INTO route_permissions (route_id, permission_id) SELECT 'resource-admin-users-create', p.id FROM permissions p JOIN resources res ON res.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE res.name='users' AND a.name='CREATE' ON CONFLICT DO NOTHING;
+                INSERT INTO route_permissions (route_id, permission_id) SELECT 'resource-admin-users-update', p.id FROM permissions p JOIN resources res ON res.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE res.name='users' AND a.name='UPDATE' ON CONFLICT DO NOTHING;
+                INSERT INTO route_permissions (route_id, permission_id) SELECT 'resource-admin-users-delete', p.id FROM permissions p JOIN resources res ON res.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE res.name='users' AND a.name='DELETE' ON CONFLICT DO NOTHING;
+                INSERT INTO route_permissions (route_id, permission_id) SELECT 'resource-profile-get', p.id FROM permissions p JOIN resources res ON res.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE res.name='profile' AND a.name='READ' ON CONFLICT DO NOTHING;
+                INSERT INTO route_permissions (route_id, permission_id) SELECT 'resource-profile-update', p.id FROM permissions p JOIN resources res ON res.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE res.name='profile' AND a.name='UPDATE' ON CONFLICT DO NOTHING;
+                INSERT INTO route_permissions (route_id, permission_id) SELECT 'auth-logout-all', p.id FROM permissions p JOIN resources r ON r.id=p.resource_id JOIN actions a ON a.id=p.action_id WHERE r.name='auth' AND a.name='LOGOUT_ALL' ON CONFLICT DO NOTHING;
 
                 -- ── Seed: rate_limit_config ──────────────────────────────────────────
 
                 INSERT INTO rate_limit_config (username, replenish_rate, burst_capacity, description)
                 VALUES (NULL, 5, 5, 'Test global default')
                 ON CONFLICT DO NOTHING;
-                
+
                 SELECT route_id, path_pattern, http_method, permission_code FROM route_permission_rules;
                 """.formatted(wireMockUri);
     }

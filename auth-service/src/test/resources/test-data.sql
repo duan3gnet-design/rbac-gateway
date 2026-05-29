@@ -33,17 +33,15 @@ INSERT INTO roles (id, name) VALUES (2, 'ROLE_ADMIN');
 ALTER SEQUENCE roles_id_seq RESTART WITH 100;
 
 -- ── Permissions: ROLE_USER ───────────────────────────────────
-INSERT INTO permissions (id, role, resource_id, action_id) VALUES (1,  'ROLE_USER',  1, 1); -- products:READ
-INSERT INTO permissions (id, role, resource_id, action_id) VALUES (2,  'ROLE_USER',  2, 1); -- orders:READ
-INSERT INTO permissions (id, role, resource_id, action_id) VALUES (3,  'ROLE_USER',  2, 2); -- orders:CREATE
-INSERT INTO permissions (id, role, resource_id, action_id) VALUES (4,  'ROLE_USER',  4, 1); -- profile:READ
-INSERT INTO permissions (id, role, resource_id, action_id) VALUES (5,  'ROLE_USER',  4, 3); -- profile:UPDATE
+INSERT INTO permissions (id, resource_id, action_id) VALUES (1,  1, 1); -- products:READ
+INSERT INTO permissions (id, resource_id, action_id) VALUES (2,  2, 1); -- orders:READ
+INSERT INTO permissions (id, resource_id, action_id) VALUES (3,  2, 2); -- orders:CREATE
+INSERT INTO permissions (id, resource_id, action_id) VALUES (4,  4, 1); -- profile:READ
+INSERT INTO permissions (id, resource_id, action_id) VALUES (5,  4, 3); -- profile:UPDATE
 
 -- ── Permissions: ROLE_ADMIN ──────────────────────────────────
-INSERT INTO permissions (id, role, resource_id, action_id) VALUES (6,  'ROLE_ADMIN', 3, 1); -- users:READ
-INSERT INTO permissions (id, role, resource_id, action_id) VALUES (7,  'ROLE_ADMIN', 3, 2); -- users:CREATE
-INSERT INTO permissions (id, role, resource_id, action_id) VALUES (8,  'ROLE_ADMIN', 3, 3); -- users:UPDATE
-INSERT INTO permissions (id, role, resource_id, action_id) VALUES (9,  'ROLE_ADMIN', 3, 4); -- users:DELETE
-INSERT INTO permissions (id, role, resource_id, action_id) VALUES (10, 'ROLE_ADMIN', 1, 1); -- products:READ
-INSERT INTO permissions (id, role, resource_id, action_id) VALUES (11, 'ROLE_ADMIN', 2, 1); -- orders:READ
+INSERT INTO permissions (id, resource_id, action_id) VALUES (6, 3, 1); -- users:READ
+INSERT INTO permissions (id, resource_id, action_id) VALUES (7, 3, 2); -- users:CREATE
+INSERT INTO permissions (id, resource_id, action_id) VALUES (8, 3, 3); -- users:UPDATE
+INSERT INTO permissions (id, resource_id, action_id) VALUES (9, 3, 4); -- users:DELETE
 ALTER SEQUENCE permissions_id_seq RESTART WITH 100;
