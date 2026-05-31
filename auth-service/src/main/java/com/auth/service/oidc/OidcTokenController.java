@@ -58,7 +58,7 @@ public class OidcTokenController {
             @RequestParam(value = "scope",         required = false) String scope
     ) {
         return switch (grantType) {
-            case "password"            -> handlePassword(username, password);
+            case "password"            -> handlePassword(username, password, clientId);
             case "refresh_token"       -> handleRefreshToken(rawRefreshToken);
             case "client_credentials"  -> handleClientCredentials(clientId, clientSecret);
             default -> throw new IllegalArgumentException("Unsupported grant_type: " + grantType);
@@ -67,7 +67,7 @@ public class OidcTokenController {
 
     // ── handlers ─────────────────────────────────────────────────────────────
 
-    private Map<String, Object> handlePassword(String username, String password) {
+    private Map<String, Object> handlePassword(String username, String password, String clientId) {
         if (username == null || password == null) {
             throw new IllegalArgumentException("username and password are required for password grant");
         }
@@ -76,7 +76,7 @@ public class OidcTokenController {
 
         UserDetails user = userDetailsService.loadUserByUsername(username);
 
-        String accessToken  = jwtService.generateToken(user);
+        String accessToken  = jwtService.generateToken(user, clientId);
         String idToken      = jwtService.generateIdToken(user);
         String refreshToken = refreshTokenService.createRefreshToken(username).getToken();
         long   expiresIn    = jwtService.getExpirationSeconds();

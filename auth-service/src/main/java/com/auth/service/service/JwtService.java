@@ -39,11 +39,15 @@ public class JwtService {
 
     // ── Access Token ─────────────────────────────────────────────────────────
 
+    public String generateToken(UserDetails user) {
+        return generateToken(user, null);
+    }
+
     /**
      * Generates a signed RS256 JWT access token.
      * Claims: sub, iss, iat, exp, roles, permissions, kid (header)
      */
-    public String generateToken(UserDetails user) {
+    public String generateToken(UserDetails user, String clientId) {
         List<String> roles       = extractRoles(user);
         Set<String>  permissions = permissionService.getPermissions(roles);
         Date         now         = new Date();
@@ -53,6 +57,7 @@ public class JwtService {
                     .keyId(rsaKeyConfig.getKeyId())  // kid – k8s uses this to select the right JWK
                     .and()
                 .issuer(oidcProperties.getIssuerUri())
+                .audience().add(clientId).and()
                 .subject(user.getUsername())
                 .claim("roles",       roles)
                 .claim("permissions", permissions)
@@ -66,7 +71,7 @@ public class JwtService {
 
     /**
      * Generates an OIDC ID Token.
-     * Follows https://openid.net/specs/openid-connect-core-1_0.html#IDToken
+     * Follows <a href="https://openid.net/specs/openid-connect-core-1_0.html#IDToken">...</a>
      * <p>
      * Claims: iss, sub, aud (issuer), exp, iat, email, name, roles
      * <p>

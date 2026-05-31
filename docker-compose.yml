@@ -197,7 +197,7 @@ services:
       EUREKA_URL: http://eureka-server:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
-      OIDC_ISSUER_URI: http://localhost:8081
+      OIDC_ISSUER_URI: https://rbac-auth-proxy
     ports:
       - "8081:8081"
     depends_on:
@@ -444,6 +444,24 @@ services:
     networks:
       - rbac-network
       - kind
+      
+  # ==================== ca-server local ====================
+  ca-server:
+    image: smallstep/step-ca:latest
+    container_name: step-ca
+    ports:
+      - "9000:9000"
+    environment:
+      - DOCKER_STEPCA_INIT_NAME=MyPrivateCA
+      - DOCKER_STEPCA_INIT_DNS_NAMES=localhost,ca.local
+      - DOCKER_STEPCA_INIT_PASSWORD=ChangeThisSecurePassword123!
+      - DOCKER_STEPCA_INIT_PROVISIONER_NAME=admin
+    volumes:
+      - step_data:/home/step
+    restart: unless-stopped
+    networks:
+      - rbac-network
+      - kind
 
 volumes:
   postgres_data:
@@ -455,6 +473,7 @@ volumes:
   prometheus_data:
   grafana_data:
   influxdb_data:
+  step_data:
 
 networks:
   rbac-network:
