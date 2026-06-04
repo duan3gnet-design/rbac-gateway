@@ -50,7 +50,6 @@ RUN java -Djarmode=layertools -jar app.jar extract
 # -------------------------------------------------------------
 FROM eclipse-temurin:21-jre-alpine
 
-RUN apk add --no-cache curl
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 WORKDIR /app
@@ -69,7 +68,8 @@ ENV JAVA_OPTS="\
   -XX:MaxRAMPercentage=75.0 \
   -XX:+UseContainerSupport \
   -XX:+OptimizeStringConcat \
-  -Djava.security.egd=file:/dev/./urandom"
+  -Djava.security.egd=file:/dev/./urandom \
+  -Djdk.tracePinnedThreads=full"
 
 EXPOSE 8080
 

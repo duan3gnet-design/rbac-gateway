@@ -48,7 +48,7 @@ public class JwtValidator {
         // 1. Create the underlying cache with your desired Duration
         // Set your Duration here
         Cache<Object, Object> caffeineCache = Caffeine.newBuilder()
-                .expireAfterWrite(Duration.ofMinutes(15)) // Set your Duration here
+                .expireAfterWrite(Duration.ofSeconds(props.getJwksCacheTtlSeconds())) // Set your Duration here
                 .build();
         org.springframework.cache.Cache springCache = new CaffeineCache("jwks", caffeineCache);
         NimbusJwtDecoder decoder = NimbusJwtDecoder

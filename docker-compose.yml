@@ -197,7 +197,7 @@ services:
       EUREKA_URL: http://eureka-server:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
-      OIDC_ISSUER_URI: https://rbac-auth-proxy
+      OIDC_ISSUER_URI: http://rbac-auth:8081 # https://rbac-auth-proxy, http://rbac-auth:8081
     ports:
       - "8081:8081"
     depends_on:
@@ -207,9 +207,11 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      migration:
-        condition: service_completed_successfully
+#      migration:
+#        condition: service_completed_successfully
       eureka-server:
+        condition: service_healthy
+      jaeger:
         condition: service_healthy
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health || exit 1" ]
@@ -246,8 +248,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migration:
-        condition: service_completed_successfully
+#      migration:
+#        condition: service_completed_successfully
       auth-service:
         condition: service_healthy
       eureka-server:

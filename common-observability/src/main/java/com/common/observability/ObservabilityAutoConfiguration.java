@@ -158,7 +158,6 @@ public class ObservabilityAutoConfiguration {
      * <p>Nếu thiếu, mỗi downstream call là trace riêng lẻ — Jaeger thấy trace rời rạc.</p>
      */
     @Bean
-    @ConditionalOnProperty("tracing.export.otlp.endpoint")
     public RestClient.Builder restClientBuilder(ObservationRegistry observationRegistry) {
         return RestClient.builder()
                 .requestFactory(new JdkClientHttpRequestFactory(
