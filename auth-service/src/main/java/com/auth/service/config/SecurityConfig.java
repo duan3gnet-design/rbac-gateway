@@ -25,17 +25,17 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private final GatewayAuthFilter gatewayAuthFilter;
-    private final UserDetailsService userDetailsService;
+    private final GatewayAuthFilter           gatewayAuthFilter;
+    private final UserDetailsService          userDetailsService;
     private final AuthenticationSuccessHandler oAuth2LoginSuccessHandler;
 
     public SecurityConfig(
             GatewayAuthFilter gatewayAuthFilter,
             UserDetailsService userDetailsService,
             @Lazy AuthenticationSuccessHandler oAuth2LoginSuccessHandler) {
-        this.gatewayAuthFilter         = gatewayAuthFilter;
-        this.userDetailsService        = userDetailsService;
-        this.oAuth2LoginSuccessHandler = oAuth2LoginSuccessHandler;
+        this.gatewayAuthFilter          = gatewayAuthFilter;
+        this.userDetailsService         = userDetailsService;
+        this.oAuth2LoginSuccessHandler  = oAuth2LoginSuccessHandler;
     }
 
     @Bean
@@ -53,8 +53,6 @@ public class SecurityConfig {
                                 "/oauth2/token",
                                 "/oauth2/authorize"
                         ).permitAll()
-                        // ── OIDC userinfo (requires valid Bearer token) ─────────
-                        // Auth handled by OidcUserInfoController itself (no session)
                         .requestMatchers("/oauth2/userinfo").permitAll()
 
                         // ── Public auth endpoints ──────────────────────────────
@@ -66,13 +64,17 @@ public class SecurityConfig {
                                 "/api/auth/logout",
                                 "/api/auth/validate",
                                 "/api/auth/logout-all",
+                                "/api/auth/mfa/verify",     // MFA second step — no token yet
+                                "/api/auth/sso/providers",  // Public SSO provider list
                                 "/login/oauth2/**",
                                 "/oauth2/**",
                                 "/actuator/**"
                         ).permitAll()
                         // ── Internal service-to-service ───────────────────────
                         .requestMatchers("/internal/**").authenticated()
-                        // ── Admin API (RBAC check via @PreAuthorize) ──────────
+                        // ── MFA management (requires valid JWT) ───────────────
+                        .requestMatchers("/api/mfa/**").authenticated()
+                        // ── Admin APIs ────────────────────────────────────────
                         .requestMatchers("/api/auth/admin/**").authenticated()
                         // ── Everything else ───────────────────────────────────
                         .anyRequest().authenticated())

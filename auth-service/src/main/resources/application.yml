@@ -69,9 +69,8 @@ eureka:
     lease-expiration-duration-in-seconds: 30
     health-check-url-path: /actuator/health
 
-# ==================== JWT (legacy HS256 secret kept for backward compat) ====================
-# NOTE: JwtService now signs with RS256. The 'jwt.secret' property is no longer
-#       used for signing but is kept here so existing configs don't break on startup.
+# ==================== JWT ====================
+# NOTE: JwtService signs with RS256. The 'jwt.secret' is kept for backward compat only.
 jwt:
   secret: bXlfc3VwZXJfc2VjcmV0X2tleV9mb3JfcmJhY19nYXRld2F5XzIwMjQ=
   expiration: 86400000   # 24h in ms
@@ -84,14 +83,13 @@ app:
 
 # ==================== OIDC SERVER ====================
 oidc:
-  # Public issuer URI – MUST match what k8s --oidc-issuer-url expects.
-  # In production set via ENV: OIDC_ISSUER_URI=https://auth.your-domain.com
   issuer-uri: ${OIDC_ISSUER_URI:http://localhost:8081}
-
-  # Optional: path to a PEM-encoded PKCS#8 RSA private key.
-  # If blank, an ephemeral key is generated on startup (development only!).
-  # In production mount a Secret as a file, e.g. /etc/auth/keys/rsa_private.pem
   rsa-key-path: ${OIDC_RSA_KEY_PATH:}
+
+# ==================== MFA ====================
+mfa:
+  # Issuer name shown in authenticator apps (e.g. "RbacGateway" appears as "RbacGateway:user@mail.com")
+  issuer: ${MFA_ISSUER:RbacGateway}
 
 management:
   endpoints:
